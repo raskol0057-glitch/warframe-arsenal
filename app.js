@@ -275,16 +275,8 @@ function profile(){
       ${stat('Варфреймы и некрамехи',D.frames,'frames')}${stat('Компаньоны',D.companions,'companions')}${stat('Всё оружие',D.weapons,'arsenal')}
       ${Object.keys(byCat).sort((a,b)=>byCat[b].length-byCat[a].length).map(c=>stat(c,byCat[c],'arsenal')).join('')}
     </section>
-    <section class="card cut"><h3>Синхронизация с игрой</h3>
-      <p>У Warframe есть открытая страница профиля игрока с опытом каждого предмета. Сайт может отметить всё, что прокачано до максимального ранга. Браузер не даёт сайту запросить её сам, поэтому нужен один шаг вручную.</p>
-      <ol class="steps">
-       <li>Вставьте ID аккаунта — 24 символа из цифр и букв a–f. Внимание: новые версии игры больше не пишут ID в файл EE.log, а поиск профиля по нику Warframe отключил, поэтому узнать ID сейчас непросто. Если ID нет, отмечайте освоенное вручную ромбом на карточках.</li>
-       <li>Вставьте ID и откройте ссылку на профиль.</li>
-       <li>Скопируйте всё, что откроется на странице (Ctrl+A, Ctrl+C), и вставьте в поле ниже.</li>
-      </ol>
-      <div class="inline"><input class="field" id="pid" placeholder="ID аккаунта (24 символа)" aria-label="ID аккаунта" value="${esc(p?p.pid:'')}"><a class="btn" id="popen" target="_blank" rel="noopener" href="#">Открыть профиль</a></div>
-      <textarea class="field" id="pjson" style="margin-top:8px" placeholder="Сюда вставьте ответ страницы профиля" aria-label="Данные профиля"></textarea>
-      <div class="inline" style="margin-top:8px"><button class="btn gold" id="pimp">Импортировать освоение</button></div><div id="pmsg" class="msg"></div>
+    <section class="card cut"><h3>Синхронизация с игрой <span class="tag p" style="vertical-align:middle;margin-left:6px">В разработке</span></h3>
+      <p>Автоматический перенос освоенного из аккаунта Warframe пока в разработке: игра больше не показывает ID аккаунта, а поиск профиля по нику отключён. Пока отмечайте освоенное вручную ромбом на карточках оружия, варфреймов и компаньонов.</p>
     </section>
     <section class="card cut"><h3>Перенос между устройствами</h3>
       <p>Скопируйте код профиля и вставьте его на другом устройстве, чтобы перенести отметки.</p>
@@ -302,19 +294,6 @@ function profile(){
     if($('#pdel'))$('#pdel').onclick=()=>{$('#pconf').innerHTML=`<div class="confirm">Удалить профиль «${esc(p.name)}» и все его отметки? Отменить это нельзя. <div class="inline" style="margin-top:8px"><button class="btn danger" id="pdel2">Да, удалить</button><button class="btn" id="pdelno">Отмена</button></div></div>`;
       $('#pdel2').onclick=()=>{delete S.profiles[S.cur];S.cur=Object.keys(S.profiles)[0]||null;save();profile()};$('#pdelno').onclick=()=>{$('#pconf').innerHTML=''}};
   }
-  const pidOf=()=>{const m=$('#pid').value.match(/[0-9a-f]{24}/i);return m?m[0].toLowerCase():''};
-  const upd=()=>{const id=pidOf();$('#popen').href=id?'https://api.warframe.com/cdn/getProfileViewingData.php?playerId='+id:'#'};
-  $('#pid').addEventListener('input',upd);upd();
-  $('#popen').onclick=e=>{if(!pidOf()){e.preventDefault();msg('#pmsg','Сначала вставьте ID аккаунта (24 символа).',1)}};
-  $('#pimp').onclick=()=>{
-    let j;try{j=JSON.parse($('#pjson').value)}catch(_){return msg('#pmsg','Не получилось прочитать данные. Скопируйте страницу профиля целиком, начиная с фигурной скобки.',1)}
-    const xp=[];let name='';(function walk(o){if(Array.isArray(o)){for(const x of o){if(x&&typeof x==='object'&&'ItemType' in x&&'XP' in x)xp.push(x);else walk(x)}}else if(o&&typeof o==='object'){if(typeof o.DisplayName==='string'&&!name)name=o.DisplayName;for(const k in o)walk(o[k])}})(j);
-    if(!xp.length)return msg('#pmsg','В данных нет списка опыта предметов. Проверьте, что скопирована страница профиля.',1);
-    if(!prof())newProfile(name?name.replace(/[^\w\-. ]/g,'').trim()||'Тэнно':'Тэнно');
-    const pp=prof();if(pidOf())pp.pid=pidOf();let n=0,seen=0;
-    for(const x of xp){const hit=D.byUid[x.ItemType];if(!hit)continue;seen++;const [kind,it]=hit;const need=(it.xpk||500)*Math.pow(it.cap||30,2);if(x.XP>=need&&!pp.m[mkey(kind,it)]){pp.m[mkey(kind,it)]=1;n++}}
-    save();msg('#pmsg',`Готово: найдено ${seen} предметов каталога с опытом, отмечено новых освоенных: ${n}.`);setTimeout(profile,1600);
-  };
   if(p)$('#pexp').onclick=()=>{const code=btoa(unescape(encodeURIComponent(JSON.stringify({n:p.name,m:Object.keys(p.m)}))));$('#pcode').value=code;
     navigator.clipboard?.writeText(code).then(()=>msg('#pmsg2','Код скопирован.'),()=>{$('#pcode').select();msg('#pmsg2','Код выделен — скопируйте его.')})};
   $('#pin').onclick=()=>{try{const o=JSON.parse(decodeURIComponent(escape(atob($('#pcode').value.trim()))));const id=newProfile(String(o.n||'Тэнно').slice(0,40));for(const k of o.m||[])S.profiles[id].m[k]=1;save();profile()}catch(_){msg('#pmsg2','Код не распознан. Скопируйте его целиком.',1)}};
