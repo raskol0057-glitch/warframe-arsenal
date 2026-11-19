@@ -278,11 +278,11 @@ function profile(){
     <section class="card cut"><h3>Синхронизация с игрой</h3>
       <p>У Warframe есть открытая страница профиля игрока с опытом каждого предмета. Сайт может отметить всё, что прокачано до максимального ранга. Браузер не даёт сайту запросить её сам, поэтому нужен один шаг вручную.</p>
       <ol class="steps">
-       <li>Найдите ID аккаунта: откройте файл <code>%LOCALAPPDATA%\\Warframe\\EE.log</code> (после запуска игры) и найдите строку <code>Logged in</code> — в скобках 24 символа, это ваш ID. Можно вставить сюда всю строку.</li>
+       <li>Вставьте ID аккаунта — 24 символа из цифр и букв a–f. Внимание: новые версии игры больше не пишут ID в файл EE.log, а поиск профиля по нику Warframe отключил, поэтому узнать ID сейчас непросто. Если ID нет, отмечайте освоенное вручную ромбом на карточках.</li>
        <li>Вставьте ID и откройте ссылку на профиль.</li>
        <li>Скопируйте всё, что откроется на странице (Ctrl+A, Ctrl+C), и вставьте в поле ниже.</li>
       </ol>
-      <div class="inline"><input class="field" id="pid" placeholder="ID аккаунта или строка из EE.log" aria-label="ID аккаунта" value="${esc(p?p.pid:'')}"><a class="btn" id="popen" target="_blank" rel="noopener" href="#">Открыть профиль</a></div>
+      <div class="inline"><input class="field" id="pid" placeholder="ID аккаунта (24 символа)" aria-label="ID аккаунта" value="${esc(p?p.pid:'')}"><a class="btn" id="popen" target="_blank" rel="noopener" href="#">Открыть профиль</a></div>
       <textarea class="field" id="pjson" style="margin-top:8px" placeholder="Сюда вставьте ответ страницы профиля" aria-label="Данные профиля"></textarea>
       <div class="inline" style="margin-top:8px"><button class="btn gold" id="pimp">Импортировать освоение</button></div><div id="pmsg" class="msg"></div>
     </section>
