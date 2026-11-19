@@ -372,7 +372,10 @@ def main():
     for coll in (weapons, frames, companions, D['resources'], D['relics'], mods, arcanes):
         for x in coll: fix(x)
 
-    dump = lambda o, n: json.dump(o, open(os.path.join(OUT, n), 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
+    def dump(o, n):  # единое написание названий по всему сайту
+        t = json.dumps(o, ensure_ascii=False, separators=(',', ':'))
+        for x, y in (('Грайнир', 'Гренир'), ('Гринир', 'Гренир'), ('Зарьман', 'Зариман')): t = t.replace(x, y)
+        open(os.path.join(OUT, n), 'w', encoding='utf-8').write(t)
     dump(out, 'data.json'); dump(mout, 'mods.json')
     shutil.copy(os.path.join(ROOT, 'app.html'), os.path.join(OUT, 'index.html'))
     for f in ('app.js', 'content.js', 'lore.js', 'config.js'):
