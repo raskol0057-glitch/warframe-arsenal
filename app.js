@@ -385,7 +385,7 @@ const dec=s=>{try{return JSON.parse(decodeURIComponent(escape(atob(s.replace(/-/
 let MODS=null,modsP=null;
 function loadMods(){
   if(MODS)return Promise.resolve(MODS);
-  if(!modsP)modsP=fetch('mods.json').then(r=>r.json()).then(j=>{
+  if(!modsP)modsP=fetch('mods.json?v='+(window.WA_V||'')).then(r=>r.json()).then(j=>{
     j.byN={};for(const m of j.mods){if(!j.byN[m.n])j.byN[m.n]=m;m._s=(m.ru+' '+m.n+' '+m.rs.join(' ')+' '+m.en.join(' ')).toLowerCase()}
     j.arcN={};for(const a of j.arcanes){j.arcN[a.n]=a;a._s=(a.ru+' '+a.n+' '+a.rs.join(' ')).toLowerCase()}
     MODS=j;return j});
@@ -741,5 +741,5 @@ function foot(){return `<footer class="wrap">Обновлено: ${D.built}. Д�
 
 /* ---------- Запуск ---------- */
 const auth=cloudInit();
-fetch('data.json').then(r=>r.json()).then(async j=>{D=j;prep();await auth;renderWho();route()}).catch(()=>{view.innerHTML='<div class="loading">Не удалось загрузить данные. Обновите страницу.</div>'});
+fetch('data.json?v='+(window.WA_V||'')).then(r=>r.json()).then(async j=>{D=j;prep();await auth;renderWho();route()}).catch(()=>{view.innerHTML='<div class="loading">Не удалось загрузить данные. Обновите страницу.</div>'});
 })();

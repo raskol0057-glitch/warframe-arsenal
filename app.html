@@ -7,7 +7,7 @@
 <meta name="description" content="Фанатский справочник Warframe: оружие, варфреймы, реликвии, ресурсы, освоение и хроники лора.">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jura:wght@500;600;700&family=Exo+2:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
-<link rel="preload" href="data.json" as="fetch" crossorigin>
+<link rel="preload" href="data.json?v=__V__" as="fetch" crossorigin>
 <script>try{var k=localStorage.getItem("wa:skin");if(k==="classic")document.documentElement.dataset.skin="classic"}catch(e){}</script>
 <style>
 /* Layout: шапка-панель как меню игры; ниже — вид раздела: сетка карточек «Арсенала», таблицы, хроника, профиль; подробности выезжают справа */
@@ -366,9 +366,10 @@ html[data-skin="classic"] .cut::after,html[data-skin="classic"] .cut::before{dis
 <div class="scrim" id="scrim" hidden></div>
 <aside class="drawer" id="drawer" hidden role="dialog" aria-modal="true" aria-label="Подробности"></aside>
 
-<script src="config.js"></script>
-<script src="content.js"></script>
-<script src="lore.js"></script>
-<script src="app.js"></script>
+<script>window.WA_V="__V__"</script>
+<script src="config.js?v=__V__"></script>
+<script src="content.js?v=__V__"></script>
+<script src="lore.js?v=__V__"></script>
+<script src="app.js?v=__V__"></script>
 </body>
 </html>

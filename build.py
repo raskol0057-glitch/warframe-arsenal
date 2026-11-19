@@ -377,7 +377,8 @@ def main():
         for x, y in (('Грайнир', 'Гренир'), ('Гринир', 'Гренир'), ('Зарьман', 'Зариман')): t = t.replace(x, y)
         open(os.path.join(OUT, n), 'w', encoding='utf-8').write(t)
     dump(out, 'data.json'); dump(mout, 'mods.json')
-    shutil.copy(os.path.join(ROOT, 'app.html'), os.path.join(OUT, 'index.html'))
+    ver = datetime.datetime.now().strftime('%Y%m%d%H%M')  # новая версия файлов при каждой сборке — браузер не держит старые
+    open(os.path.join(OUT, 'index.html'), 'w', encoding='utf-8').write(open(os.path.join(ROOT, 'app.html'), encoding='utf-8').read().replace('__V__', ver))
     for f in ('app.js', 'content.js', 'lore.js', 'config.js'):
         shutil.copy(os.path.join(ROOT, f), os.path.join(OUT, f))
     shutil.copytree(os.path.join(ROOT, 'pol'), os.path.join(OUT, 'pol'))
