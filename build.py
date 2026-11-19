@@ -380,6 +380,7 @@ def main():
     shutil.copy(os.path.join(ROOT, 'app.html'), os.path.join(OUT, 'index.html'))
     for f in ('app.js', 'content.js', 'lore.js', 'config.js'):
         shutil.copy(os.path.join(ROOT, f), os.path.join(OUT, f))
+    shutil.copytree(os.path.join(ROOT, 'pol'), os.path.join(OUT, 'pol'))
     open(os.path.join(OUT, '.nojekyll'), 'w').close()
 
     miss = [w['name'] for w in weapons + frames + companions if not w.get('img')]

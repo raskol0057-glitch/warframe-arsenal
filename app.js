@@ -369,11 +369,9 @@ function stopLore(){cancelAnimationFrame(lraf);lraf=0}
 
 /* ---------- Общие помощники для модов и билдов ---------- */
 const W=window.WA;
-const POLS=['madurai','vazarin','naramon','zenurik','unairu','penjaga','umbra'];
-const POLSVG={madurai:'M3 3 L8 13 L13 3',vazarin:'M8 2 C12 5 13 9 8 14 C3 9 4 5 8 2 Z',naramon:'M2 9 H14 M5 5.5 H11',zenurik:'M3 5 H13 M3 11 H13 M8 3 V13',
-  unairu:'M8 14 V6 M4 3 V7 Q8 11 12 7 V3',penjaga:'M8 2 L13 8 L8 14 L3 8 Z M8 6 V10',umbra:'M4 3 V9 Q8 14 12 9 V3 M8 2 V5',any:'M8 3 V13 M3 8 H13'};
-const POLCOL={madurai:'#ff9a6a',vazarin:'#7fd3ff',naramon:'#d9c48e',zenurik:'#b18cff',unairu:'#b9c4d2',penjaga:'#7ee0b0',umbra:'#f1d89a',any:'#ffffff'};
-const polIcon=p=>p&&POLSVG[p]?`<span class="pol" title="${esc(W.POL[p]||p)}"><svg viewBox="0 0 16 16" fill="none" stroke="${POLCOL[p]}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="${POLSVG[p]}"/></svg></span>`:'';
+const POLS=['madurai','vazarin','naramon','zenurik','unairu','penjaga','umbra','any'];
+const POLCOL={madurai:'#e8a66a',vazarin:'#8fc9e0',naramon:'#d9c48e',zenurik:'#b9a0e6',unairu:'#c4bcb0',penjaga:'#8fd0a8',umbra:'#e6cc93',any:'#ede7dd'};
+const polIcon=p=>p&&POLCOL[p]?`<span class="pol" title="${esc(W.POL[p]||p)}" style="color:${POLCOL[p]}"><i style="--m:url(pol/${p}.svg)"></i></span>`:'';
 const polRow=l=>l&&l.length?l.map(polIcon).join(''):null;
 const fmt=v=>v==null?'—':(Math.abs(v)>=100?Math.round(v):Math.round(v*100)/100).toLocaleString('ru');
 const pct=v=>v==null?null:fmt(v*100)+'%';
@@ -445,9 +443,10 @@ function compat(m,it,bk,slot){
 // Аура и стойка добавляют ёмкость: при совпадении вдвое больше, при несовпадении на 20% меньше.
 function cost(sp,m,r){
   if(!m)return 0;
-  if(m.d<0){let bonus=-m.d+r;if(sp&&m.p){if(sp===m.p)bonus*=2;else bonus=Math.floor(bonus*0.8)}return -bonus}
+  if(m.d<0){let bonus=-m.d+r;if(sp&&m.p){if(sp===m.p||(sp==='any'&&m.p!=='umbra'))bonus*=2;else bonus=Math.floor(bonus*0.8)}return -bonus}
   const base=m.d+r;if(!sp||!m.p)return base;
-  return sp===m.p?Math.ceil(base/2):Math.ceil(base*1.25);
+  const same=sp===m.p||(sp==='any'&&m.p!=='umbra');
+  return same?Math.ceil(base/2):Math.ceil(base*1.25);
 }
 const MD=n=>n&&MODS&&MODS.byN[n];
 function emptyBuild(kind,it){const bk=bkOf(kind,it),L=layout(bk),d=defaults(it,bk);
@@ -456,10 +455,10 @@ function setMod(slot,n){const m=MD(n);if(slot&&m){slot.m=n;slot.r=m.f}}
 function itemOf(b){return D.byName[b.k+':'+b.i]}
 function calc(b){
   const it=itemOf(b),bk=bkOf(b.k,it),def=defaults(it,bk);
-  const cap=(it.cap||30)*(b.rt?2:1);let used=0;const f={forma:0,aura:0,stance:0,umbra:0};
+  const cap=(it.cap||30)*(b.rt?2:1);let used=0;const f={forma:0,aura:0,stance:0,umbra:0,omni:0};
   const all=[...(b.a?[['a',b.a,def.a]]:[]),...(b.x?[['x',b.x,def.x]]:[]),...b.s.map((x,i)=>['s',x,def.s[i]])];
   for(const [t,x,dp] of all){used+=cost(x.p,MD(x.m),x.r);
-    if(x.p&&x.p!==dp){if(x.p==='umbra')f.umbra++;else if(t==='a')f[bk==='melee'?'stance':'aura']++;else f.forma++}}
+    if(x.p&&x.p!==dp){if(x.p==='umbra')f.umbra++;else if(x.p==='any')f.omni++;else if(t==='a')f[bk==='melee'?'stance':'aura']++;else f.forma++}}
   return {cap,used,free:cap-used,f};
 }
 function optimize(b){
@@ -545,7 +544,7 @@ function recInDrawer(kind,it){
     const c=calc(b),f=c.f,ms=[...(b.a&&b.a.m?[b.a]:[]),...(b.x&&b.x.m?[b.x]:[]),...b.s.filter(x=>x.m)];
     el.innerHTML=`<div class="slabel">Рекомендованный билд — ${esc(b.title)}</div>
       <div class="rec">${ms.map(x=>{const m=MD(x.m);return `<div class="recm">${pic(m.img,'',m.n,28)}<span title="${esc(m.ru)}">${esc(m.ru)}</span></div>`}).join('')}${b.c.filter(Boolean).map(n=>{const a=MODS.arcN[n];return `<div class="recm">${pic(a.img,'',a.n,28)}<span>${esc(a.ru)}</span></div>`}).join('')}</div>
-      <p class="route" style="margin-top:10px">Нужно форм: <b>${f.forma}</b>${f.aura?` + аура-форм: ${f.aura}`:''}${f.stance?` + форм стойки: ${f.stance}`:''}${f.umbra?` + Умбра-форм: ${f.umbra}`:''}. Ёмкость: ${c.used} / ${c.cap} (с Реактором Орокин или Катализатором).</p>
+      <p class="route" style="margin-top:10px">Нужно форм: <b>${f.forma}</b>${f.aura?` + аура-форм: ${f.aura}`:''}${f.stance?` + форм стойки: ${f.stance}`:''}${f.umbra?` + Умбра-форм: ${f.umbra}`:''}${f.omni?` + Омни-форм: ${f.omni}`:''}. Ёмкость: ${c.used} / ${c.cap} (с Реактором Орокин или Катализатором).</p>
       <div class="btnrow"><a class="btn gold" href="#build=${enc(packB(b))}">Открыть в конструкторе</a><a class="btn" href="#build=${own}">Собрать свой</a></div>
       <p class="sub" style="font-size:12.5px">Базовый билд по типу ${kind==='frames'?'варфрейма':kind==='companions'?'компаньона':'оружия'}. Prime-моды можно заменить обычными версиями. Подробные билды игроков — на Overframe по ссылке ниже.</p>`;
   });
@@ -581,7 +580,7 @@ function renderBuilder(){
      <section class="card cut"><h3>Мои билды</h3>${saved.length?`<div class="plist">${saved.map((s,i)=>`<div class="pitem"><span class="nm" style="font-size:13.5px">${esc(s.title)}</span><button class="btn" data-load="${i}">Открыть</button><button class="btn danger" data-del="${i}" aria-label="Удалить">×</button></div>`).join('')}</div>`:'<p>Сохранённые билды появятся здесь. Они хранятся в этом браузере.</p>'}</section>
     </aside>
     <div>${b?`<div class="slots top" id="topslots"></div><div class="slots" id="slots"></div><div class="slabel">Итоговые характеристики</div><div id="bstats"></div>
-      <p class="sub" style="font-size:12.5px;margin-top:12px">Учитываются моды с прямыми бонусами («+165% урона», «+55% силы способностей»); условные эффекты, наборы и мистификаторы в расчёт не входят. Полярность слота меняется в окне выбора мода. Формы считаются относительно стандартных полярностей предмета. Стихии объединяются по порядку слотов: слева направо, сверху вниз.</p>`:'<div class="empty">Выберите предмет слева или откройте рекомендованный билд из карточки варфрейма или оружия.</div>'}</div>
+      <p class="sub" style="font-size:12.5px;margin-top:12px">Учитываются моды с прямыми бонусами («+165% урона», «+55% силы способностей»); условные эффекты, наборы и мистификаторы в расчёт не входят. Полярность слота меняется в окне выбора мода. Формы считаются относительно стандартных полярностей предмета. Стихии объединяются по порядку слотов: слева направо, сверху вниз. Ёмкость: 30 на максимальном ранге, с Реактором Орокин или Катализатором — 60; аура и стойка добавляют ёмкость (при совпадении полярности вдвое больше). Мод в слоте своей полярности стоит вдвое дешевле, в слоте чужой полярности — на 25% дороже, как в игре. Универсальная полярность (Форма Омни) подходит любому моду, кроме Умбры.</p>`:'<div class="empty">Выберите предмет слева или откройте рекомендованный билд из карточки варфрейма или оружия.</div>'}</div>
    </div></div>${foot()}`;
   const all=pickables();
   $('#bq').addEventListener('input',e=>{const q=e.target.value.toLowerCase().trim();$('#bres').innerHTML=q?all.filter(([k,x])=>match(x._s.slice(0,200)+' '+x.name.toLowerCase(),q)).slice(0,10).map(([k,x])=>`<div class="pitem" style="cursor:pointer" data-pk="${k}:${esc(x.name)}">${pic(x.img,'',x.name,32)}<span class="nm" style="font-size:14px">${esc(x.ru)}</span><span class="n">${esc(x.category)}</span></div>`).join('')||'<p>Ничего не найдено.</p>':''});
@@ -611,7 +610,7 @@ function renderBuilder(){
     const c=calc(b),f=c.f;
     $('#bcap').innerHTML=`<div class="lbl" style="display:flex;justify-content:space-between;font:500 12px var(--f-data);color:var(--muted)"><span>Ёмкость</span><span>свободно ${c.free}</span></div>
       <div class="cap ${c.free<0?'over':''}">${c.used} / ${c.cap}</div><div class="bar" style="margin:6px 0 12px"><i style="width:${Math.min(100,Math.max(0,c.used/c.cap*100))}%;${c.free<0?'background:var(--warn)':''}"></i></div>
-      <div class="formas">${box('Формы',f.forma)}${bk==='melee'?box('Формы стойки',f.stance):box('Аура-формы',L.aura?f.aura:null)}${box('Умбра-формы',f.umbra||null)}${box('Всего форм',f.forma+f.aura+f.stance+f.umbra)}</div>
+      <div class="formas">${box('Формы',f.forma)}${bk==='melee'?box('Формы стойки',f.stance):box('Аура-формы',L.aura?f.aura:null)}${box('Умбра-формы',f.umbra||null)}${box('Омни-формы',f.omni||null)}${box('Всего форм',f.forma+f.aura+f.stance+f.umbra+f.omni)}</div>
       ${c.free<0?'<p class="msg err">Не хватает ёмкости. Нажмите «Минимум форм», чтобы подобрать полярности.</p>':''}`;
     const sres=statsOf(b);
     $('#bstats').innerHTML=`<div class="stats">${sres.rows.filter(r=>r[1]!=null).map(([k,v,u])=>{const base=sres.base&&sres.base[k];const up=base!=null&&Math.abs(v-base)>1e-6;return box(k,`${u==='×'?'×':''}${fmt(v)}${u&&u!=='×'?u:''}${up?` <small class="${v>base?'up':'down'}">было ${fmt(base)}${u==='%'?'%':''}</small>`:''}`)}).join('')}</div>${sres.dmg?elChips(sres.dmg):''}`;

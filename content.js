@@ -184,7 +184,7 @@ window.WA = (function () {
     'Lorak Tauron Strike': ['Тауронов удар Лорак', 'Призывает книгу Лорак и обрушивает луч энергии из Бездны.'],
   };
 
-  const POL = { madurai: 'Мадурай', vazarin: 'Вазарин', naramon: 'Нарамон', zenurik: 'Зенурик', unairu: 'Унайру', penjaga: 'Пенджага', umbra: 'Умбра', any: 'Любая' };
+  const POL = { madurai: 'Мадурай', vazarin: 'Вазарин', naramon: 'Нарамон', zenurik: 'Зенурик', unairu: 'Унайру', penjaga: 'Пенджага', umbra: 'Умбра', any: 'Универсальная' };
 
   // Шаблоны рекомендованных билдов (английские названия модов, как в игровых данных).
   const FRAME_TPL = {
