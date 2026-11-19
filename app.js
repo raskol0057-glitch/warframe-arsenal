@@ -18,6 +18,10 @@ const mkey=(kind,it)=>(kind==='frames'?'f:':kind==='companions'?'c:':'w:')+it.na
 const LIST=kind=>kind==='frames'?D.frames:kind==='companions'?D.companions:D.weapons;
 const isDone=(kind,it)=>{const p=prof();return !!(p&&p.m[mkey(kind,it)])};
 function setDone(kind,it,v){let p=prof();if(!p){newProfile('Тэнно');p=prof()}const k=mkey(kind,it);if(v)p.m[k]=1;else delete p.m[k];save()}
+function applySkin(k){if(k==='classic')document.documentElement.dataset.skin='classic';else delete document.documentElement.dataset.skin;
+  document.querySelectorAll('.skin button').forEach(b=>b.classList.toggle('on',b.dataset.skin===(k==='classic'?'classic':'graphite')));try{localStorage.setItem('wa:skin',k)}catch(_){}}
+document.querySelectorAll('.skin button').forEach(b=>b.onclick=()=>applySkin(b.dataset.skin));
+applySkin(document.documentElement.dataset.skin==='classic'?'classic':'graphite');
 function renderWho(){const p=prof();$('#whoName').textContent=p?(S.cur==='cloud'?'☁ ':'')+p.name:'Войти'}
 
 /* ---------- Облачные аккаунты (Supabase) ---------- */

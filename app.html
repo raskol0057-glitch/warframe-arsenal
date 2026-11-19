@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jura:wght@500;600;700&family=Exo+2:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
 <link rel="preload" href="data.json" as="fetch" crossorigin>
+<script>try{var k=localStorage.getItem("wa:skin");if(k==="classic")document.documentElement.dataset.skin="classic"}catch(e){}</script>
 <style>
 /* Layout: шапка-панель как меню игры; ниже — вид раздела: сетка карточек «Арсенала», таблицы, хроника, профиль; подробности выезжают справа */
 :root{
@@ -308,7 +309,27 @@ input[type=range]{accent-color:var(--gold)}
 .fway b{font:600 13.5px var(--f-display)}
 .fway small{display:block;font:500 11px var(--f-data);color:var(--muted)}
 
+/* Классическое оформление (синее), включается переключателем в шапке */
+html[data-skin="classic"]{--void:#060a11;--deep:#0b121e;--panel:#101a29;--panel2:#152238;--line:#23334a;--line2:#36496a;--ink:#e6ecf3;--muted:#91a2b8;--gold:#d6b46a;--gold2:#f1d89a;--energy:#5fd4e8;--warn:#e8a87c;--ok:#8fd6a0}
+html[data-skin="classic"] body{background:radial-gradient(ellipse 90% 55% at 50% -15%,#1a2b46 0%,transparent 60%) no-repeat,var(--void)}
+html[data-skin="classic"] .top{background:rgba(6,10,17,.96)}
+html[data-skin="classic"] h1{background:linear-gradient(180deg,#fff6dd,var(--gold) 75%);-webkit-background-clip:text;background-clip:text;color:transparent}
+html[data-skin="classic"] .bar i{background:linear-gradient(90deg,var(--gold),var(--gold2));box-shadow:0 0 8px rgba(214,180,106,.5)}
+html[data-skin="classic"] .btn.gold{background:linear-gradient(90deg,var(--gold),var(--gold2))}
+html[data-skin="classic"] nav.tabs a.on:after{box-shadow:0 0 10px var(--gold)}
+html[data-skin="classic"] .tile,html[data-skin="classic"] .modc{background:linear-gradient(165deg,var(--panel2),var(--panel) 60%)}
+html[data-skin="classic"] .tile.done{background:linear-gradient(165deg,#221d14,var(--panel) 65%)}
+html[data-skin="classic"] .tile:hover .pic{filter:drop-shadow(0 0 10px rgba(95,212,232,.35))}
+html[data-skin="classic"] .dhead img,html[data-skin="classic"] .dhead .none{background:radial-gradient(circle at 50% 45%,#22395a,#0b1422 70%)}
+html[data-skin="classic"] .drawer,html[data-skin="classic"] .picker>div{background:#0c1422}
+html[data-skin="classic"] .cut{clip-path:polygon(var(--cut) 0,100% 0,100% calc(100% - var(--cut)),calc(100% - var(--cut)) 100%,0 100%,0 var(--cut))}
+html[data-skin="classic"] .cut::after,html[data-skin="classic"] .cut::before{display:none}
+.skin{display:flex;border:1px solid var(--line2);background:var(--panel)}
+.skin button{border:0;background:transparent;color:var(--muted);padding:7px 10px;font:600 11px var(--f-display);letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.skin button.on{background:var(--gold);color:#1a1408}
+
 @media(max-width:860px){
+  .skin button{padding:6px 6px;font-size:9.5px;letter-spacing:.02em}
   .bwrap{grid-template-columns:1fr}.bside{position:static}
   .slots,.slots.top{grid-template-columns:repeat(2,minmax(0,1fr))}
   .strow{grid-template-columns:1fr}.fway{grid-template-columns:1fr}.fgrid{grid-template-columns:1fr}
@@ -337,6 +358,7 @@ input[type=range]{accent-color:var(--gold)}
     <a href="#wiki" data-v="wiki">Энциклопедия</a><a href="#relics" data-v="relics">Реликвии</a><a href="#resources" data-v="resources">Ресурсы</a>
     <a href="#lore" data-v="lore">Хроники</a><a href="#new" data-v="new">Новое</a><a href="#guide" data-v="guide">Справка</a>
   </nav>
+  <div class="skin" role="group" aria-label="Оформление"><button data-skin="graphite" title="Новое оформление">Графит</button><button data-skin="classic" title="Старое синее оформление">Классика</button></div>
   <a class="who" href="#profile" id="who"><i></i><span id="whoName">Профиль</span></a>
 </div></header>
 
