@@ -293,7 +293,11 @@ footer{border-top:1px solid var(--line);color:var(--muted);font-size:12px;paddin
 .mech{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:12px;padding-bottom:40px}
 .mech p,.mech li{color:#d6cec2;font-size:14px}
 .mech code{white-space:normal}
-@media(max-width:860px){.mech{grid-template-columns:1fr}}
+.navsel{display:none}
+@media(max-width:860px){
+  .top .wrap{flex-wrap:wrap;row-gap:0;padding-top:6px;min-height:0}.top .logo,.top .skin,.top .who{margin-bottom:8px}.tools{position:static}.top .skin{margin-left:auto}
+  .navsel{display:block;order:5;flex:1 1 100%;min-width:0;margin-bottom:10px;padding:10px 12px;font:600 14px var(--f-display);letter-spacing:.06em}
+  nav.tabs{display:none}.mech{grid-template-columns:1fr}}
 .slot.lbl:before{content:attr(data-l);position:absolute;top:-8px;left:8px;background:var(--void);padding:0 5px;font:600 9.5px var(--f-display);letter-spacing:.14em;color:var(--gold);text-transform:uppercase}
 .picker{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(5,4,3,.7);padding:16px}
 .picker>div{width:min(760px,100%);max-height:88vh;display:flex;flex-direction:column;background:#141210;border:1px solid var(--line2)}
@@ -371,6 +375,7 @@ html[data-skin="classic"] .cut::after,html[data-skin="classic"] .cut::before{dis
   <a class="logo" href="#arsenal" aria-label="Warframe Arsenal — на главную">
     <svg viewBox="0 0 40 40" fill="none" stroke="#d6b46a" stroke-width="1.5" aria-hidden="true"><path d="M20 3 L36 20 L20 37 L4 20 Z"/><path d="M20 10 L29 20 L20 30 L11 20 Z" opacity=".6"/><circle cx="20" cy="20" r="3" fill="#5fd4e8" stroke="none"/></svg>
     <span>Arsenal</span></a>
+  <select class="field navsel" id="navsel" aria-label="Раздел сайта"></select>
   <nav class="tabs" id="tabs">
     <a href="#arsenal" data-v="arsenal">Оружие</a><a href="#frames" data-v="frames">Варфреймы</a><a href="#companions" data-v="companions">Компаньоны</a>
     <a href="#mods" data-v="mods">Моды</a><a href="#arcanes" data-v="arcanes">Мистификаторы</a><a href="#build" data-v="build">Конструктор</a>

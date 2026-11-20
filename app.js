@@ -22,6 +22,9 @@ function applySkin(k){if(k==='classic')document.documentElement.dataset.skin='cl
   document.querySelectorAll('.skin button').forEach(b=>b.classList.toggle('on',b.dataset.skin===(k==='classic'?'classic':'graphite')));try{localStorage.setItem('wa:skin',k)}catch(_){}}
 document.querySelectorAll('.skin button').forEach(b=>b.onclick=()=>applySkin(b.dataset.skin));
 applySkin(document.documentElement.dataset.skin==='classic'?'classic':'graphite');
+(()=>{const ns=document.getElementById('navsel');if(!ns)return;
+  ns.innerHTML=[...document.querySelectorAll('#tabs a')].map(a=>`<option value="${a.dataset.v}">${a.textContent}</option>`).join('')+'<option value="profile">Профиль</option>';
+  ns.onchange=()=>{location.hash=ns.value}})();
 function renderWho(){const p=prof();$('#whoName').textContent=p?(S.cur==='cloud'?'☁ ':'')+p.name:'Войти'}
 
 /* ---------- Облачные аккаунты (Supabase) ---------- */
@@ -124,6 +127,7 @@ function route(){
   const known=['arsenal','frames','companions','mods','arcanes','build','wiki','relics','resources','new','lore','guide','profile'];
   const vv=known.includes(v)?v:'arsenal';
   document.querySelectorAll('#tabs a').forEach(a=>a.classList.toggle('on',a.dataset.v===vv));
+  const ns=document.getElementById('navsel');if(ns)ns.value=vv;
   closeDrawer(true);
   if(cur==='lore'&&vv!=='lore')stopLore();
   if(vv==='lore'&&cur==='lore'&&m){showEv(+m[1]-1,true);return}
@@ -438,11 +442,11 @@ function setMod(slot,n){const m=MD(n);if(slot&&m){slot.m=n;slot.r=m.f}}
 function itemOf(b){return D.byName[b.k+':'+b.i]}
 function calc(b){
   const it=itemOf(b),bk=bkOf(b.k,it),def=defaults(it,bk);
-  const cap=(it.cap||30)*(b.rt?2:1);let used=0;const f={forma:0,aura:0,stance:0,umbra:0,omni:0};
+  const base=(it.cap||30)*(b.rt?2:1);let used=0,bonus=0;const f={forma:0,aura:0,stance:0,umbra:0,omni:0};
   const all=[...(b.a?[['a',b.a,def.a]]:[]),...(b.x?[['x',b.x,def.x]]:[]),...b.s.map((x,i)=>['s',x,def.s[i]])];
-  for(const [t,x,dp] of all){used+=cost(x.p,MD(x.m),x.r);
+  for(const [t,x,dp] of all){const cc=cost(x.p,MD(x.m),x.r);if(cc<0)bonus+=-cc;else used+=cc;
     if(x.p&&x.p!==dp){if(x.p==='umbra')f.umbra++;else if(x.p==='any')f.omni++;else if(t==='a')f[bk==='melee'?'stance':'aura']++;else f.forma++}}
-  return {cap,used,free:cap-used,f};
+  const cap=base+bonus;return {cap,base,bonus,used,free:cap-used,f};
 }
 function optimize(b){
   const it=itemOf(b),bk=bkOf(b.k,it),def=defaults(it,bk);
@@ -535,7 +539,7 @@ function recInDrawer(kind,it){
     const c=calc(b),f=c.f,ms=[...(b.a&&b.a.m?[b.a]:[]),...(b.x&&b.x.m?[b.x]:[]),...b.s.filter(x=>x.m)];
     el.innerHTML=`<div class="slabel">Рекомендованный билд — ${esc(b.title)}</div>
       <div class="rec">${ms.map(x=>{const m=MD(x.m);return `<div class="recm">${pic(m.img,'',m.n,28)}<span title="${esc(m.ru)}">${esc(m.ru)}</span></div>`}).join('')}${b.c.filter(Boolean).map(n=>{const a=MODS.arcN[n];return `<div class="recm">${pic(a.img,'',a.n,28)}<span>${esc(a.ru)}</span></div>`}).join('')}</div>
-      <p class="route" style="margin-top:10px">Нужно форм: <b>${f.forma}</b>${f.aura?` + аура-форм: ${f.aura}`:''}${f.stance?` + форм стойки: ${f.stance}`:''}${f.umbra?` + Умбра-форм: ${f.umbra}`:''}${f.omni?` + Омни-форм: ${f.omni}`:''}. Ёмкость: ${c.used} / ${c.cap} (с Реактором Орокин или Катализатором).</p>
+      <p class="route" style="margin-top:10px">Нужно форм: <b>${f.forma}</b>${f.aura?` + аура-форм: ${f.aura}`:''}${f.stance?` + форм стойки: ${f.stance}`:''}${f.umbra?` + Умбра-форм: ${f.umbra}`:''}${f.omni?` + Омни-форм: ${f.omni}`:''}. Ёмкость: ${c.used} / ${c.cap} (${c.base} с Реактором Орокин или Катализатором${c.bonus?` + ${c.bonus} от ${kind==='frames'?'ауры':'стойки'}`:''}).</p>
       <div class="btnrow"><a class="btn gold" href="#build=${enc(packB(b))}">Открыть в конструкторе</a><a class="btn" href="#build=${own}">Собрать свой</a></div>
       <p class="sub" style="font-size:12.5px">Базовый билд по типу ${kind==='frames'?'варфрейма':kind==='companions'?'компаньона':'оружия'}. Prime-моды можно заменить обычными версиями. Подробные билды игроков — на Overframe по ссылке ниже.</p>`;
   });
@@ -608,7 +612,7 @@ function renderBuilder(){
     $('#slots').innerHTML=b.s.map((x,i)=>slotHtml(x,'Слот '+(i+1),i,'s')).join('');
     const c=calc(b),f=c.f;
     $('#bcap').innerHTML=`<div class="lbl" style="display:flex;justify-content:space-between;font:500 12px var(--f-data);color:var(--muted)"><span>Ёмкость</span><span>свободно ${c.free}</span></div>
-      <div class="cap ${c.free<0?'over':''}">${c.used} / ${c.cap}</div><div class="bar" style="margin:6px 0 12px"><i style="width:${Math.min(100,Math.max(0,c.used/c.cap*100))}%;${c.free<0?'background:var(--warn)':''}"></i></div>
+      <div class="cap ${c.free<0?'over':''}">${c.used} / ${c.cap}</div><div style="font:500 11.5px var(--f-data);color:var(--muted);margin-top:2px">${c.base} базовая${c.bonus?` + ${c.bonus} от ${bk==='melee'?'стойки':'ауры'}${(()=>{const s=b.a,m=s&&MD(s.m);return m&&s.p&&m.p?(s.p===m.p||s.p==='any'?' (полярность совпадает, ×2)':' (полярность не совпадает)'):''})()}`:''} = ${c.cap}</div><div class="bar" style="margin:6px 0 12px"><i style="width:${Math.min(100,Math.max(0,c.used/c.cap*100))}%;${c.free<0?'background:var(--warn)':''}"></i></div>
       <div class="formas">${box('Формы',f.forma)}${bk==='melee'?box('Формы стойки',f.stance):box('Аура-формы',L.aura?f.aura:null)}${box('Умбра-формы',f.umbra||null)}${box('Омни-формы',f.omni||null)}${box('Всего форм',f.forma+f.aura+f.stance+f.umbra+f.omni)}</div>
       ${c.free<0?'<p class="msg err">Не хватает ёмкости. Нажмите «Минимум форм», чтобы подобрать полярности.</p>':''}`;
     const sres=statsOf(b);
