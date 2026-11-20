@@ -468,14 +468,31 @@ function optimize(b){
 function polarizeAll(b){for(const x of [...(b.a?[b.a]:[]),...(b.x?[b.x]:[]),...b.s]){const m=MD(x.m);if(m&&m.p)x.p=m.p}return b}
 
 /* Бонус мода на текущем ранге: на максимальном — текст из игры, ниже — проценты пересчитываются пропорционально рангу */
-function modBonus(m,r){
-  const k=(r+1)/((m.f||0)+1);
-  const lines=(m.rs||[]).map(s=>r>=m.f?s:s.replace(/([+-]?)(\d+(?:[.,]\d+)?)%/g,(_,sg,v)=>sg+fmt(parseFloat(v.replace(',','.'))*k)+'%'));
+function modBonus(m,r,mult){
+  mult=mult||1;const k=(r+1)/((m.f||0)+1);
+  const lines=(m.rs||[]).map(s=>(r>=m.f&&mult===1)?s:s.replace(/([+-]?)(\d+(?:[.,]\d+)?)%/g,(_,sg,v)=>sg+fmt(parseFloat(v.replace(',','.'))*(r>=m.f?1:k)*mult)+'%'));
   const full=lines.join('\n');return {full,short:lines.slice(0,2).join(' · ')};
 }
+/* ---------- Наборы модов ---------- */
+// Умбра и Жертвенный набор усиливают сами моды набора (WARFRAME Wiki, Set Mods):
+// Умбра: 2 мода — Живучесть и Волокно +30%, Усиление +25%; 3 мода — +80% и +75%. Жертвенный: оба мода +25%.
+const SETNAME={UmbraSetMod:'Умбра',SacrificeSetMod:'Жертвенный',AugurSetMod:'Авгур',GladiatorSetMod:'Гладиатор',VigilanteSetMod:'Бдительный',HunterSetMod:'Охотник',MechaSetMod:'Меха',TekSetMod:'Тек',SynthSetMod:'Синтез',StrainSetMod:'Штамм',AmarSetMod:'Амар',AshenSetMod:'Пепельный',BonebladeSetMod:'Костяной клинок',BorealSetMod:'Бореал',FemurSetMod:'Бедренный',HawkSetMod:'Ястреб',NiraSetMod:'Нира',RaptorSetMod:'Раптор',SpiderSetMod:'Паук'};
+const SETRU={AugurSetMod:n=>`${n}% энергии, потраченной на способности, превращается в щиты.`,GladiatorSetMod:n=>`+${n}% шанса крита ближнего боя за каждый множитель комбо.`,
+  VigilanteSetMod:n=>`${n}% шанс усилить критическое попадание основного оружия на уровень.`,HunterSetMod:n=>`+${n}% урона компаньона по врагам под Кровотечением.`,
+  SynthSetMod:n=>`Убранное основное и вторичное оружие перезаряжает ${n}% магазина в секунду.`};
+function setCounts(b){const c={};for(const x of [...(b.a?[b.a]:[]),...(b.x?[b.x]:[]),...b.s]){const m=MD(x.m);if(m&&m.set)c[m.set]=(c[m.set]||0)+1}return c}
+function setMult(m,c){if(!m||!m.set)return 1;const n=c[m.set]||0;
+  if(m.set==='UmbraSetMod'){const intens=/Intensify/.test(m.n);return n>=3?(intens?1.75:1.8):n===2?(intens?1.25:1.3):1}
+  if(m.set==='SacrificeSetMod')return n>=2?1.25:1;return 1}
+function setsHtml(b){const c=setCounts(b);const keys=Object.keys(c);if(!keys.length)return '';
+  return `<div class="slabel">Наборы модов</div><div class="stats">${keys.map(k=>{const st=MODS.sets&&MODS.sets[k];const n=c[k],max=st?st.k:n;
+    let txt='';if(k==='UmbraSetMod')txt=n>=3?'Умбральная Живучесть и Волокно +80%, Умбральное Усиление +75%':n===2?'Умбральная Живучесть и Волокно +30%, Умбральное Усиление +25%':'Поставьте ещё моды Умбры для бонуса набора';
+    else if(k==='SacrificeSetMod')txt=n>=2?'Оба Жертвенных мода +25%':'Поставьте второй Жертвенный мод для бонуса';
+    else if(st){const raw=st.s[Math.min(n,st.s.length)-1]||'';const num=(raw.match(/\d+(?:\.\d+)?/)||[''])[0];txt=SETRU[k]?SETRU[k](num):raw}
+    return box(`Набор «${esc(SETNAME[k]||k.replace('SetMod',''))}» · ${n}/${max}`,`<span style="font:500 12.5px var(--f-body);display:block;white-space:normal">${esc(txt)}</span>`)}).join('')}</div>`}
 /* ---------- Расчёт характеристик ---------- */
 const STATRE=/^([+-]?\d+(?:[.,]\d+)?)%\s+([A-Za-z ()]+?)\s*$/;
-function modStats(m,r){const k=(r+1)/((m.f||0)+1),out=[];for(const s of m.en||[]){const mm=String(s).trim().match(STATRE);if(mm)out.push([mm[2].trim().toLowerCase(),parseFloat(mm[1].replace(',','.'))*k])}return out}
+function modStats(m,r,mult){const k=(r+1)/((m.f||0)+1)*(mult||1),out=[];for(const s of m.en||[]){const mm=String(s).trim().match(STATRE);if(mm)out.push([mm[2].trim().toLowerCase(),parseFloat(mm[1].replace(',','.'))*k])}return out}
 const FMAP={'ability strength':'str','ability duration':'dur','ability range':'rng','ability efficiency':'eff','health':'hp','shield capacity':'sh','armor':'ar','energy max':'en','sprint speed':'sp','casting speed':'cast'};
 const WMAP={'damage':'dmg','melee damage':'dmg','multishot':'ms','critical chance':'cc','critical damage':'cd','status chance':'sc','fire rate':'fr','attack speed':'fr','fire rate (x2 for bows)':'fr','magazine capacity':'mag','reload speed':'rl',
   'heat':'heat','cold':'cold','electricity':'electricity','toxin':'toxin','impact':'impact','puncture':'puncture','slash':'slash','radiation':'radiation','viral':'viral','corrosive':'corrosive','magnetic':'magnetic','blast':'blast','gas':'gas'};
@@ -491,9 +508,10 @@ function combine(order){
   return res;
 }
 function statsOf(b){
+  const SC=setCounts(b);
   const it=itemOf(b),st=it.st||{},sum={},order=[];
   for(const x of [...(b.a?[b.a]:[]),...(b.x?[b.x]:[]),...b.s]){const m=MD(x.m);if(!m)continue;
-    for(const [k,v] of modStats(m,x.r)){const key=(b.k==='arsenal'?WMAP:FMAP)[k];if(!key)continue;
+    for(const [k,v] of modStats(m,x.r,setMult(m,SC))){const key=(b.k==='arsenal'?WMAP:FMAP)[k];if(!key)continue;
       if(b.k==='arsenal'&&['heat','cold','electricity','toxin','radiation','viral','corrosive','magnetic','blast','gas'].includes(key))order.push([key,v]);else sum[key]=(sum[key]||0)+v}}
   const S2=k=>sum[k]||0;
   if(b.k!=='arsenal'){
@@ -574,7 +592,7 @@ function renderBuilder(){
       <div class="btnrow"><button class="btn" id="bsave">Сохранить</button><button class="btn" id="blink">Скопировать ссылку</button></div><div id="bmsg" class="msg"></div></section>`:''}
      <section class="card cut"><h3>Мои билды</h3>${saved.length?`<div class="plist">${saved.map((s,i)=>`<div class="pitem"><span class="nm" style="font-size:13.5px">${esc(s.title)}</span><button class="btn" data-load="${i}">Открыть</button><button class="btn danger" data-del="${i}" aria-label="Удалить">×</button></div>`).join('')}</div>`:'<p>Сохранённые билды появятся здесь. Они хранятся в этом браузере.</p>'}</section>
     </aside>
-    <div>${b?`<div class="slots top" id="topslots"></div><div class="slots" id="slots"></div><div class="slabel">Итоговые характеристики</div><label class="dtoggle"><input type="checkbox" id="bdelta"> Показать, что изменили моды (база → итог, + / −)</label><div id="bstats"></div>
+    <div>${b?`<div class="slots top" id="topslots"></div><div class="slots" id="slots"></div><div id="bsets"></div><div class="slabel">Итоговые характеристики</div><label class="dtoggle"><input type="checkbox" id="bdelta"> Показать, что изменили моды (база → итог, + / −)</label><div id="bstats"></div>
       <p class="sub" style="font-size:12.5px;margin-top:12px">Учитываются моды с прямыми бонусами («+165% урона», «+55% силы способностей»); условные эффекты, наборы и мистификаторы в расчёт не входят. Полярность слота меняется в окне выбора мода. Формы считаются относительно стандартных полярностей предмета. Стихии объединяются по порядку слотов: слева направо, сверху вниз. Ёмкость: 30 на максимальном ранге, с Реактором Орокин или Катализатором — 60; аура и стойка добавляют ёмкость (при совпадении полярности вдвое больше). Мод в слоте своей полярности стоит вдвое дешевле, в слоте чужой полярности — на 25% дороже, как в игре. Универсальная полярность (Форма Омни) подходит любому моду, кроме Умбры.</p>`:'<div class="empty">Выберите предмет слева или откройте рекомендованный билд из карточки варфрейма или оружия.</div>'}</div>
    </div></div>${foot()}`;
   const all=pickables();
@@ -600,7 +618,7 @@ function renderBuilder(){
     const same=x.p&&m.p&&(x.p===m.p||(x.p==='any'&&m.p!=='umbra'));
     const st=x.p&&m.p?(same?'m':'x'):'';
     const tip=x.p?`Слот: ${W.POL[x.p]}, мод: ${W.POL[m.p]||'без полярности'}${st==='m'?' — совпадает, расход вдвое меньше':st==='x'?' — не совпадает, расход на 25% больше':''}`:`Слот без полярности, мод: ${W.POL[m.p]||'без полярности'}`;
-    const bonus=modBonus(m,x.r);
+    const bonus=modBonus(m,x.r,setMult(m,setCounts(b)));
     return `<div class="slot lbl" data-l="${label}" data-t="${type}" data-i="${idx}">
       <div class="shead"><span class="bonus" title="${esc(bonus.full)}">${esc(bonus.short)}</span><span class="cst ${st}" title="${esc(tip)}">${polIcon(x.p||m.p)}${c<0?'+'+(-c):c}</span></div>
       <div class="row1">${pic(m.img,'',m.n,34)}<div class="mn">${esc(m.ru)}</div></div>
@@ -615,6 +633,7 @@ function renderBuilder(){
       <div class="cap ${c.free<0?'over':''}">${c.used} / ${c.cap}</div><div style="font:500 11.5px var(--f-data);color:var(--muted);margin-top:2px">${c.base} базовая${c.bonus?` + ${c.bonus} от ${bk==='melee'?'стойки':'ауры'}${(()=>{const s=b.a,m=s&&MD(s.m);return m&&s.p&&m.p?(s.p===m.p||s.p==='any'?' (полярность совпадает, ×2)':' (полярность не совпадает)'):''})()}`:''} = ${c.cap}</div><div class="bar" style="margin:6px 0 12px"><i style="width:${Math.min(100,Math.max(0,c.used/c.cap*100))}%;${c.free<0?'background:var(--warn)':''}"></i></div>
       <div class="formas">${box('Формы',f.forma)}${bk==='melee'?box('Формы стойки',f.stance):box('Аура-формы',L.aura?f.aura:null)}${box('Умбра-формы',f.umbra||null)}${box('Омни-формы',f.omni||null)}${box('Всего форм',f.forma+f.aura+f.stance+f.umbra+f.omni)}</div>
       ${c.free<0?'<p class="msg err">Не хватает ёмкости. Нажмите «Минимум форм», чтобы подобрать полярности.</p>':''}`;
+    $('#bsets').innerHTML=setsHtml(b);
     const sres=statsOf(b);
     let showD=false;try{showD=localStorage.getItem('wa:delta')==='1'}catch(_){}
     const dt=$('#bdelta');if(dt){dt.checked=showD;dt.onchange=e=>{try{localStorage.setItem('wa:delta',e.target.checked?'1':'0')}catch(_){}refresh()}}

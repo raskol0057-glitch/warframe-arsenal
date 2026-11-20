@@ -193,9 +193,10 @@ def build_mods(mods_raw, arcanes_raw, ru):
         if 'Beginner' in m['uniqueName'] or 'Flawed' in m['name']: continue
         if ' ' not in m['name'] and m['name'][1:].islower() and m['name'].lower().endswith('upgrade'): continue
         k = (m['name'], t)
-        # Под одним именем бывают служебные версии (…Expert) с другими значениями — берём обычную, с источниками выпадения
-        score = (0 if 'Expert' in m['uniqueName'].rsplit('/', 1)[-1] and not m['name'].startswith('Primed') else 1,
-                 1 if m.get('drops') else 0, m.get('fusionLimit') or 0)
+        # Под одним именем бывают разные моды игры (учебные …Beginner, служебные …Expert/…Intermediate и даже другие моды,
+        # например «Болевая точка» с бонусом к комбо). Канон, как в Module:Mods/data на вики: без суффикса, с самым коротким внутренним именем.
+        last = m['uniqueName'].rsplit('/', 1)[-1]
+        score = (0 if re.search(r'(Beginner|Expert|Intermediate)$', last) and not m['name'].startswith('Primed') else 1, -len(last))
         if k not in best or score > best[k][0]: best[k] = (score, m)
     best = {k: v[1] for k, v in best.items()}
     mods = []
@@ -208,6 +209,22 @@ def build_mods(mods_raw, arcanes_raw, ru):
                      'en': en, 'rs': last_stats(r.get('levelStats')) or en, 'img': m.get('imageName'),
                      'aug': bool(m.get('isAugment')), 'exi': bool(m.get('isExilus') or m.get('isUtility')),
                      'set': m.get('modSet', '').rsplit('/', 1)[-1] if m.get('modSet') else None, 'dr': drops(m)})
+    # Поправки по WARFRAME Wiki там, где игровая выгрузка расходится с вики
+    fixes = json.load(open(os.path.join(ROOT, 'mod_fixes.json'), encoding='utf-8'))
+    for m in mods:
+        fx = fixes.get(m['n'])
+        if not fx: continue
+        for k in ('d', 'f', 'p'):
+            if k in fx: m[k] = fx[k]
+        if 'en' in fx:
+            new = fx['en']; nums = re.findall(r'\d+(?:\.\d+)?', ' '.join(new))
+            ru_txt = chr(10).join(m['rs'])
+            if m['rs'] != m['en'] and len(re.findall(r'\d+(?:[.,]\d+)?', ru_txt)) == len(nums):
+                it = iter(nums)
+                m['rs'] = re.sub(r'\d+(?:[.,]\d+)?', lambda _: next(it).replace('.', ','), ru_txt).split(chr(10))
+            else:
+                m['rs'] = new
+            m['en'] = new
     mods.sort(key=lambda x: x['ru'])
     arc = []
     for a in arcanes_raw:
@@ -229,7 +246,11 @@ def build_mods(mods_raw, arcanes_raw, ru):
         if key in seenf and len(seenf[key]['en']) >= len(e['en']): continue
         seenf[key] = e
     focus = sorted(seenf.values(), key=lambda e: (e['s'], ['Ultimate', 'Active', 'Residual', 'Stats'].index(e['k']) if e['k'] in ('Ultimate', 'Active', 'Residual', 'Stats') else 9, e['n']))
-    return mods, arc, focus
+    sets = {}
+    for m in mods_raw:
+        if m.get('numUpgradesInSet') and m.get('stats'):
+            sets[m['uniqueName'].rsplit('/', 1)[-1]] = {'k': m['numUpgradesInSet'], 's': [clean(x) for x in m['stats']]}
+    return mods, arc, focus, sets
 
 
 def main():
@@ -317,7 +338,7 @@ def main():
             if x.get('rel'): fresh.append({'k': kind, 'name': x['name'], 'date': x['rel']})
     fresh.sort(key=lambda x: x['date'], reverse=True)
 
-    mods, arcanes, focus = build_mods(fetch_json('Mods'), fetch_json('Arcanes'), ru)
+    mods, arcanes, focus, sets = build_mods(fetch_json('Mods'), fetch_json('Arcanes'), ru)
     modru = {m['n']: m['ru'] for m in mods}
     fmods = {}
     for e in fetch_json('Enemy'):
@@ -334,7 +355,7 @@ def main():
     out = {'built': datetime.date.today().isoformat(), 'weapons': weapons, 'frames': frames, 'companions': companions,
            'relics': D['relics'], 'resources': D['resources'], 'fresh': fresh[:48], 'factionMods': faction_mods,
            'cats': sorted(counts, key=lambda c: -counts[c]), 'guide': D['guide']}
-    mout = {'mods': mods, 'arcanes': arcanes, 'focus': focus}
+    mout = {'mods': mods, 'arcanes': arcanes, 'focus': focus, 'sets': sets}
 
     for coll in (weapons, frames, companions, D['resources'], D['relics'], mods, arcanes):
         for x in coll:
