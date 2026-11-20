@@ -463,6 +463,12 @@ function optimize(b){
 }
 function polarizeAll(b){for(const x of [...(b.a?[b.a]:[]),...(b.x?[b.x]:[]),...b.s]){const m=MD(x.m);if(m&&m.p)x.p=m.p}return b}
 
+/* Бонус мода на текущем ранге: на максимальном — текст из игры, ниже — проценты пересчитываются пропорционально рангу */
+function modBonus(m,r){
+  const k=(r+1)/((m.f||0)+1);
+  const lines=(m.rs||[]).map(s=>r>=m.f?s:s.replace(/([+-]?)(\d+(?:[.,]\d+)?)%/g,(_,sg,v)=>sg+fmt(parseFloat(v.replace(',','.'))*k)+'%'));
+  const full=lines.join('\n');return {full,short:lines.slice(0,2).join(' · ')};
+}
 /* ---------- Расчёт характеристик ---------- */
 const STATRE=/^([+-]?\d+(?:[.,]\d+)?)%\s+([A-Za-z ()]+?)\s*$/;
 function modStats(m,r){const k=(r+1)/((m.f||0)+1),out=[];for(const s of m.en||[]){const mm=String(s).trim().match(STATRE);if(mm)out.push([mm[2].trim().toLowerCase(),parseFloat(mm[1].replace(',','.'))*k])}return out}
@@ -580,11 +586,19 @@ function renderBuilder(){
   $('#blink').onclick=()=>{const url=location.origin+location.pathname+'#build='+enc(packB(b));navigator.clipboard?.writeText(url).then(()=>msg('#bmsg','Ссылка скопирована.'),()=>msg('#bmsg',url))};
   refresh();
   function slotHtml(x,label,idx,type){
-    const m=MD(x.m);const c=m?cost(x.p,m,x.r):0;const cls=m&&x.p&&m.p?(x.p===m.p?'m':'x'):'';
-    if(type==='c'){const a=x&&MODS.arcN[x];return `<div class="slot lbl${a?'':' empty'}" data-l="${label}" data-t="c" data-i="${idx}">${a?`<div class="row1">${pic(a.img,'',a.n,34)}<div class="mn">${esc(a.ru)}</div></div>`:'+ мистификатор'}</div>`}
-    return `<div class="slot lbl${m?'':' empty'}" data-l="${label}" data-t="${type}" data-i="${idx}">
-      ${m?`<div class="sh">${polIcon(x.p)||'<span class="pol"></span>'}<span class="dr ${cls}">${c<0?'+'+(-c):c}</span></div><div class="row1">${pic(m.img,'',m.n,34)}<div class="mn">${esc(m.ru)}</div></div><div class="sh"><span>ранг ${x.r}/${m.f}</span>${polIcon(m.p)}</div>`
-        :`${polIcon(x.p)||''}<span>+ мод</span>`}</div>`;
+    if(type==='c'){const a=x&&MODS.arcN[x];return `<div class="slot lbl${a?'':' empty'}" data-l="${label}" data-t="c" data-i="${idx}">${a?`<div class="row1">${pic(a.img,'',a.n,34)}<div class="mn">${esc(a.ru)}</div></div><div class="bonus" title="${esc(a.rs.join(' '))}">${esc((a.rs[0]||'').split('\n').slice(0,2).join(' '))}</div>`:'+ мистификатор'}</div>`}
+    const m=MD(x.m);
+    if(!m)return `<div class="slot lbl empty" data-l="${label}" data-t="${type}" data-i="${idx}" title="${x.p?'Полярность слота: '+esc(W.POL[x.p]):'Слот без полярности'}">${polIcon(x.p)||''}<span>+ мод</span></div>`;
+    const c=cost(x.p,m,x.r);
+    // Одна иконка: полярность слота (зелёная — совпадает с модом, красная — нет); если у слота полярности нет — полярность мода
+    const same=x.p&&m.p&&(x.p===m.p||(x.p==='any'&&m.p!=='umbra'));
+    const st=x.p&&m.p?(same?'m':'x'):'';
+    const tip=x.p?`Слот: ${W.POL[x.p]}, мод: ${W.POL[m.p]||'без полярности'}${st==='m'?' — совпадает, расход вдвое меньше':st==='x'?' — не совпадает, расход на 25% больше':''}`:`Слот без полярности, мод: ${W.POL[m.p]||'без полярности'}`;
+    const bonus=modBonus(m,x.r);
+    return `<div class="slot lbl" data-l="${label}" data-t="${type}" data-i="${idx}">
+      <div class="shead"><span class="bonus" title="${esc(bonus.full)}">${esc(bonus.short)}</span><span class="cst ${st}" title="${esc(tip)}">${polIcon(x.p||m.p)}${c<0?'+'+(-c):c}</span></div>
+      <div class="row1">${pic(m.img,'',m.n,34)}<div class="mn">${esc(m.ru)}</div></div>
+      <div class="stars" role="group" aria-label="Ранг ${x.r} из ${m.f}">${Array.from({length:m.f},(_,k)=>`<button class="star${k<x.r?' on':''}" data-r="${k+1}" aria-label="Ранг ${k+1}"></button>`).join('')}</div></div>`;
   }
   function refresh(){
     const top=[];if(b.a)top.push(slotHtml(b.a,L.aura,0,'a'));if(b.x)top.push(slotHtml(b.x,'Эксилус',0,'x'));b.c.forEach((n,i)=>top.push(slotHtml(n,'Мистификатор',i,'c')));
@@ -599,7 +613,8 @@ function renderBuilder(){
     $('#bstats').innerHTML=`<div class="stats">${sres.rows.filter(r=>r[1]!=null).map(([k,v,u])=>{const base=sres.base&&sres.base[k];const up=base!=null&&Math.abs(v-base)>1e-6;return box(k,`${u==='×'?'×':''}${fmt(v)}${u&&u!=='×'?u:''}${up?` <small class="${v>base?'up':'down'}">было ${fmt(base)}${u==='%'?'%':''}</small>`:''}`)}).join('')}</div>${sres.dmg?elChips(sres.dmg):''}`;
     history.replaceState(null,'','#build');
   }
-  view.querySelector('.bwrap').addEventListener('click',e=>{const s=e.target.closest('.slot');if(!s)return;openPicker(b,it,bk,s.dataset.t,+s.dataset.i,refresh)});
+  view.querySelector('.bwrap').addEventListener('click',e=>{const s=e.target.closest('.slot');if(!s)return;
+    const star=e.target.closest('.star');if(star){const t=s.dataset.t,i=+s.dataset.i,x=t==='a'?b.a:t==='x'?b.x:b.s[i];const r=+star.dataset.r;x.r=x.r===r?r-1:r;refresh();return}openPicker(b,it,bk,s.dataset.t,+s.dataset.i,refresh)});
 }
 function openPicker(b,it,bk,t,i,done){
   const L=layout(bk);
@@ -689,7 +704,7 @@ function arcanesView(){
 
 /* ---------- Энциклопедия ---------- */
 function wiki(sub){
-  const tabs=[['factions','Фракции'],['status','Статус-эффекты'],['focus','Школы фокуса']];
+  const tabs=[['factions','Фракции'],['status','Статус-эффекты'],['focus','Школы фокуса'],['mech','Механики']];
   if(!tabs.some(t=>t[0]===sub))sub='factions';
   const head=`<div class="wrap"><div class="head"><div><div class="eyebrow">Кодекс</div><h1>Энциклопедия</h1><p class="sub">Фракции и их уязвимости, статус-эффекты урона и школы фокуса оператора.</p></div></div>
     <div class="subtabs">${tabs.map(([k,t])=>`<a href="#wiki-${k}" class="${k===sub?'on':''}">${t}</a>`).join('')}</div>`;
@@ -706,6 +721,10 @@ function wiki(sub){
   if(sub==='status'){
     view.innerHTML=head+`<div class="stbl">${W.STATUS.map(([e,n,t])=>`<div class="strow cut"><div><span class="el" style="color:${W.ELC[e]}">${esc(W.EL[e])}</span>${W.COMBO[e]?`<div class="f" style="margin-top:6px">${esc(W.EL[W.COMBO[e][0]])} + ${esc(W.EL[W.COMBO[e][1]])}</div>`:''}</div><div style="font:600 15px var(--f-display)">${esc(n)}</div><div style="color:#c6d1de;font-size:14px">${esc(t)}</div></div>`).join('')}</div>
       <p class="sub" style="padding-bottom:30px">Стихии в моде складываются по порядку слотов: две первичные (огонь, холод, электричество, токсин) объединяются во вторичную. Конструктор билдов считает это автоматически.</p></div>${foot()}`;
+    return;
+  }
+  if(sub==='mech'){
+    view.innerHTML=head+`<p class="sub" style="margin-bottom:14px">Как в Warframe считаются моды, урон и способности. Кратко, с примерами.</p><div class="mech">${W.MECH.map(([t,h])=>`<section class="card cut"><h3>${esc(t)}</h3>${h}</section>`).join('')}</div></div>${foot()}`;
     return;
   }
   view.innerHTML=head+'<div class="loading">ЗАГРУЗКА…</div></div>';
