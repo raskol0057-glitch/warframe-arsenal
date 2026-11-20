@@ -495,7 +495,8 @@ function statsOf(b){
   if(b.k!=='arsenal'){
     return {kind:'body',rows:[['Сила',100+S2('str'),'%'],['Длительность',100+S2('dur'),'%'],['Дальность',100+S2('rng'),'%'],['Эффективность',Math.min(175,100+S2('eff')),'%'],
       ['Здоровье',st.hp!=null?st.hp*(1+S2('hp')/100):null,''],['Щиты',st.sh!=null?st.sh*(1+S2('sh')/100):null,''],['Броня',st.ar!=null?st.ar*(1+S2('ar')/100):null,''],
-      ['Энергия',st.en!=null?st.en*(1+S2('en')/100):null,''],['Скорость',st.sp!=null?st.sp*(1+S2('sp')/100):null,'']]};
+      ['Энергия',st.en!=null?st.en*(1+S2('en')/100):null,''],['Скорость',st.sp!=null?st.sp*(1+S2('sp')/100):null,'']],
+      base:{'Сила':100,'Длительность':100,'Дальность':100,'Эффективность':100,'Здоровье':st.hp,'Щиты':st.sh,'Броня':st.ar,'Энергия':st.en,'Скорость':st.sp}};
   }
   const B=st.tot||0,dm=1+S2('dmg')/100,phys={};
   for(const p of ['impact','puncture','slash'])if(st.dmg&&st.dmg[p])phys[p]=st.dmg[p]*dm*(1+S2(p)/100);
@@ -508,7 +509,8 @@ function statsOf(b){
   return {kind:'weapon',dmg,rows:[['Урон за попадание',total,''],['Крит. шанс',cc*100,'%'],['Крит. урон',cm,'×'],['Шанс статуса',sc*100,'%'],
     [st.wt==='Melee'?'Скорость атаки':'Скорострельность',fr,''],['Мультивыстрел',ms,''],['Магазин',st.mag?Math.round(st.mag*(1+S2('mag')/100)):null,''],
     ['Перезарядка',st.rl?st.rl/(1+S2('rl')/100):null,' с'],['Средний урон с критами',avg*ms,''],['Урон в секунду (без перезарядки)',avg*ms*fr,'']],
-    base:{'Урон за попадание':B,'Крит. шанс':(st.cc||0)*100,'Крит. урон':st.cm,'Шанс статуса':(st.sc||0)*100}};
+    base:(()=>{const a0=B*(1+(st.cc||0)*((st.cm||1)-1))*(st.ms||1);return {'Урон за попадание':B,'Крит. шанс':(st.cc||0)*100,'Крит. урон':st.cm,'Шанс статуса':(st.sc||0)*100,
+      [st.wt==='Melee'?'Скорость атаки':'Скорострельность']:st.fr,'Мультивыстрел':st.ms||1,'Магазин':st.mag,'Перезарядка':st.rl,'Средний урон с критами':a0,'Урон в секунду (без перезарядки)':a0*(st.fr||1)}})()};
 }
 
 /* ---------- Рекомендованные билды ---------- */
@@ -568,7 +570,7 @@ function renderBuilder(){
       <div class="btnrow"><button class="btn" id="bsave">Сохранить</button><button class="btn" id="blink">Скопировать ссылку</button></div><div id="bmsg" class="msg"></div></section>`:''}
      <section class="card cut"><h3>Мои билды</h3>${saved.length?`<div class="plist">${saved.map((s,i)=>`<div class="pitem"><span class="nm" style="font-size:13.5px">${esc(s.title)}</span><button class="btn" data-load="${i}">Открыть</button><button class="btn danger" data-del="${i}" aria-label="Удалить">×</button></div>`).join('')}</div>`:'<p>Сохранённые билды появятся здесь. Они хранятся в этом браузере.</p>'}</section>
     </aside>
-    <div>${b?`<div class="slots top" id="topslots"></div><div class="slots" id="slots"></div><div class="slabel">Итоговые характеристики</div><div id="bstats"></div>
+    <div>${b?`<div class="slots top" id="topslots"></div><div class="slots" id="slots"></div><div class="slabel">Итоговые характеристики</div><label class="dtoggle"><input type="checkbox" id="bdelta"> Показать, что изменили моды (база → итог, + / −)</label><div id="bstats"></div>
       <p class="sub" style="font-size:12.5px;margin-top:12px">Учитываются моды с прямыми бонусами («+165% урона», «+55% силы способностей»); условные эффекты, наборы и мистификаторы в расчёт не входят. Полярность слота меняется в окне выбора мода. Формы считаются относительно стандартных полярностей предмета. Стихии объединяются по порядку слотов: слева направо, сверху вниз. Ёмкость: 30 на максимальном ранге, с Реактором Орокин или Катализатором — 60; аура и стойка добавляют ёмкость (при совпадении полярности вдвое больше). Мод в слоте своей полярности стоит вдвое дешевле, в слоте чужой полярности — на 25% дороже, как в игре. Универсальная полярность (Форма Омни) подходит любому моду, кроме Умбры.</p>`:'<div class="empty">Выберите предмет слева или откройте рекомендованный билд из карточки варфрейма или оружия.</div>'}</div>
    </div></div>${foot()}`;
   const all=pickables();
@@ -610,7 +612,17 @@ function renderBuilder(){
       <div class="formas">${box('Формы',f.forma)}${bk==='melee'?box('Формы стойки',f.stance):box('Аура-формы',L.aura?f.aura:null)}${box('Умбра-формы',f.umbra||null)}${box('Омни-формы',f.omni||null)}${box('Всего форм',f.forma+f.aura+f.stance+f.umbra+f.omni)}</div>
       ${c.free<0?'<p class="msg err">Не хватает ёмкости. Нажмите «Минимум форм», чтобы подобрать полярности.</p>':''}`;
     const sres=statsOf(b);
-    $('#bstats').innerHTML=`<div class="stats">${sres.rows.filter(r=>r[1]!=null).map(([k,v,u])=>{const base=sres.base&&sres.base[k];const up=base!=null&&Math.abs(v-base)>1e-6;return box(k,`${u==='×'?'×':''}${fmt(v)}${u&&u!=='×'?u:''}${up?` <small class="${v>base?'up':'down'}">было ${fmt(base)}${u==='%'?'%':''}</small>`:''}`)}).join('')}</div>${sres.dmg?elChips(sres.dmg):''}`;
+    let showD=false;try{showD=localStorage.getItem('wa:delta')==='1'}catch(_){}
+    const dt=$('#bdelta');if(dt){dt.checked=showD;dt.onchange=e=>{try{localStorage.setItem('wa:delta',e.target.checked?'1':'0')}catch(_){}refresh()}}
+    // «Перезарядка» — чем меньше, тем лучше
+    const lowerBetter=k=>k==='Перезарядка';
+    $('#bstats').innerHTML=`<div class="stats">${sres.rows.filter(r=>r[1]!=null).map(([k,v,u])=>{
+      const base=sres.base&&sres.base[k];const val=`${u==='×'?'×':''}${fmt(v)}${u&&u!=='×'?u:''}`;
+      if(!showD||base==null)return box(k,val);
+      const d=v-base;if(Math.abs(d)<1e-6)return box(k,`${val} <small>без изменений</small>`);
+      const good=lowerBetter(k)?d<0:d>0;const rel=base?` (${d>0?'+':'−'}${fmt(Math.abs(d/base*100))}%)`:'';
+      const unit=u==='%'?' п.п.':(u==='×'?'':u);
+      return box(k,`${val}<span class="dline ${good?'up':'down'}">${d>0?'+':'−'}${fmt(Math.abs(d))}${unit}${u==='%'?'':rel}</span><span class="dbase">база ${u==='×'?'×':''}${fmt(base)}${u==='%'?'%':u&&u!=='×'?u:''}</span>`)}).join('')}</div>${sres.dmg?elChips(sres.dmg):''}`;
     history.replaceState(null,'','#build');
   }
   view.querySelector('.bwrap').addEventListener('click',e=>{const s=e.target.closest('.slot');if(!s)return;
