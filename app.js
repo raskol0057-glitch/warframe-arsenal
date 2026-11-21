@@ -448,7 +448,7 @@ const RIVST=[['dmg','Damage','Урон'],['ms','Multishot','Мультивыст
   ['fr','Fire Rate','Скорострельность / скорость атаки'],['mag','Magazine Capacity','Магазин'],['rl','Reload Speed','Скорость перезарядки'],['heat','Heat','Огонь'],['cold','Cold','Холод'],
   ['electricity','Electricity','Электричество'],['toxin','Toxin','Токсин'],['impact','Impact','Удар'],['puncture','Puncture','Прокол'],['slash','Slash','Разрез']];
 function rivenMod(){const r=(CB&&CB.riv)||{p:'madurai',cost:18,st:[]};const L=r.st.filter(s=>s[0]&&s[1]);
-  return {n:'__riven',ru:'Ривен-мод',p:r.p||null,d:Math.max(0,(r.cost||18)-8),f:8,r:'Riven',img:null,
+  return {n:'__riven',ru:'Мод Разлома',p:r.p||null,d:Math.max(0,(r.cost||18)-8),f:8,r:'Riven',img:null,
     en:L.map(([k,v])=>`${v>=0?'+':''}${v}% ${(RIVST.find(x=>x[0]===k)||[0,k])[1]}`),rs:L.map(([k,v])=>`${v>=0?'+':''}${v}% ${(RIVST.find(x=>x[0]===k)||[0,0,k])[2]}`)}}
 // Осколки архонта (WARFRAME Wiki, Archon Shard): [ключ для расчёта, значение, текст]; закалённые (Tauforged) ×1,5
 const SHARDS={crimson:['Багровый',[['str',10,'Сила способностей +{v}%'],['dur',10,'Длительность +{v}%'],[null,25,'Крит. урон ближнего боя +{v}%'],[null,25,'Шанс статуса основного оружия +{v}%'],[null,25,'Шанс крита вторичного оружия +{v}%']]],
@@ -739,7 +739,7 @@ function openPicker(b,it,bk,t,i,done){
      ${isArc?'':`<div class="pk-pols"><span style="font:500 11px var(--f-data);color:var(--muted)">Полярность слота:</span>${['',...POLS].map(p=>`<button data-pol="${p}" class="${(slot.p||'')===p?'on':''}">${p?polIcon(p)+esc(W.POL[p]):'Нет'}</button>`).join('')}</div>`}
      ${!isArc&&slot.m?`<label style="display:flex;gap:10px;align-items:center;font:500 12px var(--f-data);color:var(--muted)">Ранг <input type="range" id="pkr" min="0" max="${MD(slot.m).f}" value="${slot.r}" style="flex:1"> <span id="pkrv">${slot.r}</span></label>`:''}
      <input class="field" id="pkq" type="search" placeholder="Поиск по названию или эффекту" aria-label="Поиск мода"></div>
-    ${canRiven?`<div class="pk-riv"><button class="btn" data-riv>${slot.m==='__riven'?'Изменить ривен-мод':'+ Ривен-мод со своими характеристиками'}</button><div id="rived" hidden></div></div>`:''}
+    ${canRiven?`<div class="pk-riv"><button class="btn" data-riv>${slot.m==='__riven'?'Изменить мод Разлома':'+ Мод Разлома (ривен) со своими характеристиками'}</button><div id="rived" hidden></div></div>`:''}
     <div class="pk-list" id="pkl"></div>
     <div class="pk-foot">${(isArc?b.c[i]:slot.m)?'<button class="btn danger" data-rm>Убрать</button>':''}<span style="font:500 11.5px var(--f-data);color:var(--muted)">Доступно: ${list.length}</span></div></div>`;
   document.body.appendChild(ov);
