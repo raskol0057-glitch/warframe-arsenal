@@ -442,9 +442,25 @@ function cost(sp,m,r){
   const same=sp===m.p||(sp==='any'&&m.p!=='umbra');
   return same?Math.ceil(base/2):Math.ceil(base*1.25);
 }
-const MD=n=>n&&MODS&&MODS.byN[n];
+const MD=n=>n==='__riven'?rivenMod():n&&MODS&&MODS.byN[n];
+// Ривен-мод: свои характеристики (до 4), полярность и расход на 8 ранге
+const RIVST=[['dmg','Damage','Урон'],['ms','Multishot','Мультивыстрел'],['cc','Critical Chance','Шанс крита'],['cd','Critical Damage','Крит. урон'],['sc','Status Chance','Шанс статуса'],
+  ['fr','Fire Rate','Скорострельность / скорость атаки'],['mag','Magazine Capacity','Магазин'],['rl','Reload Speed','Скорость перезарядки'],['heat','Heat','Огонь'],['cold','Cold','Холод'],
+  ['electricity','Electricity','Электричество'],['toxin','Toxin','Токсин'],['impact','Impact','Удар'],['puncture','Puncture','Прокол'],['slash','Slash','Разрез']];
+function rivenMod(){const r=(CB&&CB.riv)||{p:'madurai',cost:18,st:[]};const L=r.st.filter(s=>s[0]&&s[1]);
+  return {n:'__riven',ru:'Ривен-мод',p:r.p||null,d:Math.max(0,(r.cost||18)-8),f:8,r:'Riven',img:null,
+    en:L.map(([k,v])=>`${v>=0?'+':''}${v}% ${(RIVST.find(x=>x[0]===k)||[0,k])[1]}`),rs:L.map(([k,v])=>`${v>=0?'+':''}${v}% ${(RIVST.find(x=>x[0]===k)||[0,0,k])[2]}`)}}
+// Осколки архонта (WARFRAME Wiki, Archon Shard): [ключ для расчёта, значение, текст]; закалённые (Tauforged) ×1,5
+const SHARDS={crimson:['Багровый',[['str',10,'Сила способностей +{v}%'],['dur',10,'Длительность +{v}%'],[null,25,'Крит. урон ближнего боя +{v}%'],[null,25,'Шанс статуса основного оружия +{v}%'],[null,25,'Шанс крита вторичного оружия +{v}%']]],
+  amber:['Янтарный',[[null,30,'Энергия при появлении +{v}%'],[null,100,'Сферы здоровья +{v}%'],[null,50,'Сферы энергии +{v}%'],[null,25,'Скорость применения +{v}%'],[null,15,'Скорость паркура +{v}%']]],
+  azure:['Лазурный',[['fhp',150,'Здоровье +{v}'],['fsh',150,'Щиты +{v}'],['fen',50,'Энергия +{v}'],['far',150,'Броня +{v}'],[null,5,'Регенерация здоровья +{v}/с']]],
+  emerald:['Изумрудный',[[null,30,'Урон статуса Токсин +{v}%'],[null,2,'+{v} здоровья за удар токсином'],[null,10,'Урон способностей по целям с Коррозией +{v}%'],[null,2,'Макс. зарядов Коррозии +{v}']]],
+  topaz:['Топазовый',[[null,1,'+{v} к макс. здоровью за убийство взрывом (до 300)'],[null,5,'+{v} щитов за убийство взрывом'],[null,1,'+{v}% крита вторичного за убийство под Огнём'],[null,10,'Урон способностей по целям с Радиацией +{v}%']]],
+  violet:['Фиолетовый',[[null,10,'Урон способностей по целям с Электричеством +{v}%'],[null,30,'Электричество основного оружия +{v}%'],[null,25,'Крит. урон ближнего боя +{v}%'],[null,20,'Сферы здоровья дают +{v}% энергии и наоборот']]]};
+const SHCOL={crimson:'#d24a4a',amber:'#e0a040',azure:'#4aa8e0',emerald:'#4ac07a',topaz:'#e0c040',violet:'#a070e0'};
+const shardText=s=>{const o=SHARDS[s.c]&&SHARDS[s.c][1][s.o];if(!o)return '';const v=o[1]*(s.t?1.5:1);return o[2].replace('{v}',fmt(v))};
 function emptyBuild(kind,it){const bk=bkOf(kind,it),L=layout(bk),d=defaults(it,bk);
-  return {k:kind,i:it.name,rt:1,a:L.aura?{p:d.a,m:null,r:0}:null,x:L.exi?{p:d.x,m:null,r:0}:null,s:d.s.map(p=>({p,m:null,r:0})),c:Array(L.arc).fill(null),title:''}}
+  return {k:kind,i:it.name,rt:1,a:L.aura?{p:d.a,m:null,r:0}:null,x:L.exi?{p:d.x,m:null,r:0}:null,s:d.s.map(p=>({p,m:null,r:0})),c:Array(L.arc).fill(null),title:'',sh:bk==='frame'?Array(5).fill(null):[],fac:'',riv:null,prio:null}}
 function setMod(slot,n){const m=MD(n);if(slot&&m){slot.m=n;slot.r=m.f}}
 function itemOf(b){return D.byName[b.k+':'+b.i]}
 function calc(b){
@@ -471,6 +487,19 @@ function optimize(b){
     if(!best)break;best.p=MD(best.m).p;
   }
   return b;
+}
+// Вариант без форм: стандартные полярности, моды расставлены под них; если не помещается — убираются наименее важные
+function zeroForma(b){
+  const it=itemOf(b),bk=bkOf(b.k,it),def=defaults(it,bk);
+  if(b.a)b.a.p=def.a;if(b.x)b.x.p=def.x;
+  let mods=b.s.filter(x=>x.m&&MD(x.m)).map(x=>({m:x.m,r:x.r}));const order=(b.prio&&b.prio.length?b.prio:mods.map(x=>x.m));
+  const place=()=>{const slots=def.s.map(p=>({p,m:null,r:0}));const rest=[];
+    for(const mo of [...mods].sort((u,v)=>(MD(v.m).d+v.r)-(MD(u.m).d+u.r))){const i=slots.findIndex(s=>!s.m&&s.p&&s.p===MD(mo.m).p);if(i>=0){slots[i].m=mo.m;slots[i].r=mo.r}else rest.push(mo)}
+    for(const mo of rest){let i=slots.findIndex(s=>!s.m&&!s.p);if(i<0)i=slots.findIndex(s=>!s.m);slots[i].m=mo.m;slots[i].r=mo.r}b.s=slots};
+  place();
+  for(let g=0;g<12&&calc(b).free<0&&mods.length;g++){let v=null;for(let i=order.length-1;i>=0;i--)if(mods.some(x=>x.m===order[i])){v=order[i];break}
+    if(!v)v=mods[mods.length-1].m;mods=mods.filter(x=>x.m!==v);place()}
+  b.title=(b.title?b.title+', ':'')+'без форм';return b;
 }
 function polarizeAll(b){for(const x of [...(b.a?[b.a]:[]),...(b.x?[b.x]:[]),...b.s]){const m=MD(x.m);if(m&&m.p)x.p=m.p}return b}
 
@@ -520,12 +549,16 @@ function statsOf(b){
   for(const x of [...(b.a?[b.a]:[]),...(b.x?[b.x]:[]),...b.s]){const m=MD(x.m);if(!m)continue;
     for(const [k,v] of modStats(m,x.r,setMult(m,SC))){const key=(b.k==='arsenal'?WMAP:FMAP)[k];if(!key)continue;
       if(b.k==='arsenal'&&['heat','cold','electricity','toxin','radiation','viral','corrosive','magnetic','blast','gas'].includes(key))order.push([key,v]);else sum[key]=(sum[key]||0)+v}}
-  const S2=k=>sum[k]||0;
+  const flat={};
+  for(const s of b.sh||[]){const o=s&&SHARDS[s.c]&&SHARDS[s.c][1][s.o];if(!o||!o[0])continue;const v=o[1]*(s.t?1.5:1);if(o[0][0]==='f')flat[o[0].slice(1)]=(flat[o[0].slice(1)]||0)+v;else sum[o[0]]=(sum[o[0]]||0)+v}
+  const S2=k=>sum[k]||0,F=k=>flat[k]||0;
   if(b.k!=='arsenal'){
+    const hp=st.hp!=null?st.hp*(1+S2('hp')/100)+F('hp'):null,sh=st.sh!=null?st.sh*(1+S2('sh')/100)+F('sh'):null,ar=st.ar!=null?st.ar*(1+S2('ar')/100)+F('ar'):null;
+    const dr=ar!=null?ar/(ar+300):0,dr0=st.ar!=null?st.ar/(st.ar+300):0;
     return {kind:'body',rows:[['Сила',100+S2('str'),'%'],['Длительность',100+S2('dur'),'%'],['Дальность',100+S2('rng'),'%'],['Эффективность',Math.min(175,100+S2('eff')),'%'],
-      ['Здоровье',st.hp!=null?st.hp*(1+S2('hp')/100):null,''],['Щиты',st.sh!=null?st.sh*(1+S2('sh')/100):null,''],['Броня',st.ar!=null?st.ar*(1+S2('ar')/100):null,''],
-      ['Энергия',st.en!=null?st.en*(1+S2('en')/100):null,''],['Скорость',st.sp!=null?st.sp*(1+S2('sp')/100):null,'']],
-      base:{'Сила':100,'Длительность':100,'Дальность':100,'Эффективность':100,'Здоровье':st.hp,'Щиты':st.sh,'Броня':st.ar,'Энергия':st.en,'Скорость':st.sp}};
+      ['Здоровье',hp,''],['Щиты',sh,''],['Броня',ar,''],['Снижение урона',dr*100,'%'],['Эффективное здоровье',hp!=null?hp/(1-dr)+(sh||0):null,''],
+      ['Энергия',st.en!=null?st.en*(1+S2('en')/100)+F('en'):null,''],['Скорость',st.sp!=null?st.sp*(1+S2('sp')/100):null,'']],
+      base:{'Сила':100,'Длительность':100,'Дальность':100,'Эффективность':100,'Здоровье':st.hp,'Щиты':st.sh,'Броня':st.ar,'Снижение урона':dr0*100,'Эффективное здоровье':st.hp!=null?st.hp/(1-dr0)+(st.sh||0):null,'Энергия':st.en,'Скорость':st.sp}};
   }
   const B=st.tot||0,dm=1+S2('dmg')/100,phys={};
   for(const p of ['impact','puncture','slash'])if(st.dmg&&st.dmg[p])phys[p]=st.dmg[p]*dm*(1+S2(p)/100);
@@ -535,7 +568,10 @@ function statsOf(b){
   const total=Object.values(dmg).reduce((a,v)=>a+v,0);
   const cc=(st.cc||0)*(1+S2('cc')/100),cm=(st.cm||1)*(1+S2('cd')/100),sc=(st.sc||0)*(1+S2('sc')/100),fr=(st.fr||1)*(1+S2('fr')/100),ms=(st.ms||1)*(1+S2('ms')/100);
   const avg=total*(1+cc*(cm-1));
-  return {kind:'weapon',dmg,rows:[['Урон за попадание',total,''],['Крит. шанс',cc*100,'%'],['Крит. урон',cm,'×'],['Шанс статуса',sc*100,'%'],
+  const fac=b.fac&&W.FACTIONS.find(f=>f.id===b.fac);let facRows=[];
+  if(fac){const tf=Object.entries(dmg).reduce((a,[k,v])=>a+v*(fac.wk.includes(k)?1.5:fac.rs.includes(k)?0.5:1),0);const af=tf*(1+cc*(cm-1));
+    facRows=[[`Урон по «${fac.name}» за попадание`,tf,''],[`Урон в секунду по «${fac.name}»`,af*ms*fr,'']]}
+  return {kind:'weapon',dmg,rows:[...facRows,['Урон за попадание',total,''],['Крит. шанс',cc*100,'%'],['Крит. урон',cm,'×'],['Шанс статуса',sc*100,'%'],
     [st.wt==='Melee'?'Скорость атаки':'Скорострельность',fr,''],['Мультивыстрел',ms,''],['Магазин',st.mag?Math.round(st.mag*(1+S2('mag')/100)):null,''],
     ['Перезарядка',st.rl?st.rl/(1+S2('rl')/100):null,' с'],['Средний урон с критами',avg*ms,''],['Урон в секунду (без перезарядки)',avg*ms*fr,'']],
     base:(()=>{const a0=B*(1+(st.cc||0)*((st.cm||1)-1))*(st.ms||1);return {'Урон за попадание':B,'Крит. шанс':(st.cc||0)*100,'Крит. урон':st.cm,'Шанс статуса':(st.sc||0)*100,
@@ -554,6 +590,7 @@ function recBuild(kind,it){
     b.title=crit?'Критический':'Статусный';(crit?t.crit:t.status).filter(n=>ok(n)).slice(0,L.n).forEach((n,i)=>setMod(b.s[i],n));
     if(t.arc&&MODS.arcN[t.arc]&&L.arc)b.c=[t.arc];}
   if(!b.s.some(x=>x.m))return null;
+  b.prio=b.s.map(x=>x.m).filter(Boolean);
   return optimize(b);
 }
 function recInDrawer(kind,it){
@@ -565,13 +602,13 @@ function recInDrawer(kind,it){
     el.innerHTML=`<div class="slabel">Рекомендованный билд — ${esc(b.title)}</div>
       <div class="rec">${ms.map(x=>{const m=MD(x.m);return `<button class="recm" data-mod="${esc(m.n)}">${pic(m.img,'',m.n,28)}<span title="${esc(m.ru)}">${esc(m.ru)}</span></button>`}).join('')}${b.c.filter(Boolean).map(n=>{const a=MODS.arcN[n];return `<div class="recm">${pic(a.img,'',a.n,28)}<span>${esc(a.ru)}</span></div>`}).join('')}</div>
       <p class="route" style="margin-top:10px">Нужно форм: <b>${f.forma}</b>${f.aura?` + аура-форм: ${f.aura}`:''}${f.stance?` + форм стойки: ${f.stance}`:''}${f.umbra?` + Умбра-форм: ${f.umbra}`:''}${f.omni?` + Омни-форм: ${f.omni}`:''}. Ёмкость: ${c.used} / ${c.cap} (${c.base} с Реактором Орокин или Катализатором${c.bonus?` + ${c.bonus} от ${kind==='frames'?'ауры':'стойки'}`:''}).</p>
-      <div class="btnrow"><a class="btn gold" href="#build=${enc(packB(b))}">Открыть в конструкторе</a><a class="btn" href="#build=${own}">Собрать свой</a></div>
+      <div class="btnrow"><a class="btn gold" href="#build=${enc(packB(b))}">Открыть в конструкторе</a><a class="btn" href="#build=${enc(packB(zeroForma(unpackB(packB(b)))))}">Вариант без форм</a><a class="btn" href="#build=${own}">Собрать свой</a></div>
       <p class="sub" style="font-size:12.5px">Базовый билд по типу ${kind==='frames'?'варфрейма':kind==='companions'?'компаньона':'оружия'}. Prime-моды можно заменить обычными версиями. Подробные билды игроков — на Overframe по ссылке ниже.</p>`;
   });
 }
-const packB=b=>({k:b.k,i:b.i,rt:b.rt,t:b.title,a:b.a&&[b.a.p,b.a.m,b.a.r],x:b.x&&[b.x.p,b.x.m,b.x.r],s:b.s.map(x=>[x.p,x.m,x.r]),c:b.c});
+const packB=b=>({k:b.k,i:b.i,rt:b.rt,t:b.title,a:b.a&&[b.a.p,b.a.m,b.a.r],x:b.x&&[b.x.p,b.x.m,b.x.r],s:b.s.map(x=>[x.p,x.m,x.r]),c:b.c,sh:b.sh&&b.sh.some(Boolean)?b.sh:undefined,fac:b.fac||undefined,riv:b.riv||undefined,pr:b.prio||undefined});
 function unpackB(o){const it=D.byName[o.k+':'+o.i];if(!it||!bkOf(o.k,it))return null;const b=emptyBuild(o.k,it);b.rt=o.rt?1:0;b.title=o.t||'';
-  const u=(t,v)=>{if(t&&v){t.p=v[0]||null;t.m=v[1]||null;t.r=v[2]||0}};u(b.a,o.a);u(b.x,o.x);(o.s||[]).forEach((v,i)=>b.s[i]&&u(b.s[i],v));(o.c||[]).forEach((n,i)=>{if(i<b.c.length)b.c[i]=n});return b}
+  const u=(t,v)=>{if(t&&v){t.p=v[0]||null;t.m=v[1]||null;t.r=v[2]||0}};u(b.a,o.a);u(b.x,o.x);(o.s||[]).forEach((v,i)=>b.s[i]&&u(b.s[i],v));(o.c||[]).forEach((n,i)=>{if(i<b.c.length)b.c[i]=n});if(o.sh&&b.sh.length)o.sh.forEach((s,i)=>{if(i<5)b.sh[i]=s});b.fac=o.fac||'';b.riv=o.riv||null;b.prio=o.pr||null;return b}
 
 /* ---------- Конструктор ---------- */
 let CB=null;
@@ -595,11 +632,15 @@ function renderBuilder(){
      </section>
      ${b?`<section class="card cut"><h3>Ёмкость и формы</h3><div id="bcap"></div>
       <label style="display:flex;gap:8px;align-items:center;margin:10px 0;font-size:14px"><input type="checkbox" id="brt" ${b.rt?'checked':''}> Реактор Орокин / Катализатор (ёмкость ×2)</label>
-      <div class="btnrow"><button class="btn gold" id="bopt">Минимум форм</button><button class="btn" id="bpolall">Полярность под каждый мод</button><button class="btn" id="brec">Рекомендованный</button><button class="btn danger" id="bclr">Очистить</button></div>
+      <div class="btnrow"><button class="btn gold" id="bopt">Минимум форм</button><button class="btn" id="bpolall">Полярность под каждый мод</button><button class="btn" id="brec">Рекомендованный</button><button class="btn" id="bzero">Без форм</button><button class="btn danger" id="bclr">Очистить</button></div>
       <div class="btnrow"><button class="btn" id="bsave">Сохранить</button><button class="btn" id="blink">Скопировать ссылку</button></div><div id="bmsg" class="msg"></div></section>`:''}
      <section class="card cut"><h3>Мои билды</h3>${saved.length?`<div class="plist">${saved.map((s,i)=>`<div class="pitem"><span class="nm" style="font-size:13.5px">${esc(s.title)}</span><button class="btn" data-load="${i}">Открыть</button><button class="btn danger" data-del="${i}" aria-label="Удалить">×</button></div>`).join('')}</div>`:'<p>Сохранённые билды появятся здесь. Они хранятся в этом браузере.</p>'}</section>
     </aside>
-    <div>${b?`<div class="slots top" id="topslots"></div><div class="slots" id="slots"></div><div id="bsets"></div><div class="slabel">Итоговые характеристики</div><label class="dtoggle"><input type="checkbox" id="bdelta"> Показать, что изменили моды (база → итог, + / −)</label><div id="bstats"></div>
+    <div>${b?`<div class="slots top" id="topslots"></div><div class="slots" id="slots"></div><p class="sub" style="font-size:12px;margin:6px 0 0">Моды можно переставлять: перетащите мышью или нажмите ⇅ на моде, а затем на слот, куда его поставить.</p>
+      ${bk==='frame'?'<div class="slabel">Осколки архонта</div><div class="shards" id="bshards"></div>':''}<div id="bsets"></div><div class="slabel">Итоговые характеристики</div><div class="inline" style="gap:10px;margin-bottom:10px"><label class="dtoggle" style="margin:0"><input type="checkbox" id="bdelta"> Показать, что изменили моды (база → итог, + / −)</label>
+      ${b.k==='arsenal'?`<select class="field" id="bfac" style="width:auto;padding:8px 10px" aria-label="Урон по фракции"><option value="">Урон без учёта фракции</option>${W.FACTIONS.map(f=>`<option value="${f.id}" ${b.fac===f.id?'selected':''}>Против: ${esc(f.name)}</option>`).join('')}</select>`:''}
+      <select class="field" id="bcmp" style="width:auto;padding:8px 10px" aria-label="Сравнить с билдом"><option value="">Сравнить с сохранённым билдом…</option>${saved.map((s,i)=>{const o=dec(s.code);return o&&o.k===b.k&&o.i===b.i?`<option value="${i}">${esc(s.title)}</option>`:''}).join('')}<option value="rec">Сравнить с рекомендованным</option></select></div>
+      <div id="bstats"></div><div id="bcmpout"></div>
       <p class="sub" style="font-size:12.5px;margin-top:12px">Учитываются моды с прямыми бонусами («+165% урона», «+55% силы способностей»); условные эффекты, наборы и мистификаторы в расчёт не входят. Полярность слота меняется в окне выбора мода. Формы считаются относительно стандартных полярностей предмета. Стихии объединяются по порядку слотов: слева направо, сверху вниз. Ёмкость: 30 на максимальном ранге, с Реактором Орокин или Катализатором — 60; аура и стойка добавляют ёмкость (при совпадении полярности вдвое больше). Мод в слоте своей полярности стоит вдвое дешевле, в слоте чужой полярности — на 25% дороже, как в игре. Универсальная полярность (Форма Омни) подходит любому моду, кроме Умбры.</p>`:'<div class="empty">Выберите предмет слева или откройте рекомендованный билд из карточки варфрейма или оружия.</div>'}</div>
    </div></div>${foot()}`;
   const all=pickables();
@@ -613,12 +654,17 @@ function renderBuilder(){
   $('#bpolall').onclick=()=>{polarizeAll(b);refresh()};
   $('#brec').onclick=()=>{const r=recBuild(b.k,it);if(r){CB=r;renderBuilder()}else msg('#bmsg','Для этого предмета нет готового шаблона.',1)};
   $('#bclr').onclick=()=>{CB=emptyBuild(b.k,it);renderBuilder()};
+  $('#bzero').onclick=()=>{zeroForma(b);refresh()};
+  if($('#bfac'))$('#bfac').onchange=e=>{b.fac=e.target.value;refresh()};
+  $('#bcmp').onchange=()=>refresh();
+  let moveFrom=null;
   $('#bsave').onclick=()=>{S.builds=S.builds||[];S.builds.unshift({title:`${it.ru}${b.title?' — '+b.title:''} (${new Date().toLocaleDateString('ru')})`,code:enc(packB(b))});S.builds=S.builds.slice(0,50);save();renderBuilder();msg('#bmsg','Билд сохранён.')};
   $('#blink').onclick=()=>{const url=location.origin+location.pathname+'#build='+enc(packB(b));navigator.clipboard?.writeText(url).then(()=>msg('#bmsg','Ссылка скопирована.'),()=>msg('#bmsg',url))};
   refresh();
   function slotHtml(x,label,idx,type){
     if(type==='c'){const a=x&&MODS.arcN[x];return `<div class="slot lbl${a?'':' empty'}" data-l="${label}" data-t="c" data-i="${idx}">${a?`<div class="row1">${pic(a.img,'',a.n,34)}<div class="mn">${esc(a.ru)}</div></div><div class="bonus" title="${esc(a.rs.join(' '))}">${esc((a.rs[0]||'').split('\n').slice(0,2).join(' '))}</div>`:'+ мистификатор'}</div>`}
     const m=MD(x.m);
+    if(m&&m.n==='__riven'&&!m.img)m.img=null;
     if(!m)return `<div class="slot lbl empty" data-l="${label}" data-t="${type}" data-i="${idx}" title="${x.p?'Полярность слота: '+esc(W.POL[x.p]):'Слот без полярности'}">${polIcon(x.p)||''}<span>+ мод</span></div>`;
     const c=cost(x.p,m,x.r);
     // Одна иконка: полярность слота (зелёная — совпадает с модом, красная — нет); если у слота полярности нет — полярность мода
@@ -626,8 +672,8 @@ function renderBuilder(){
     const st=x.p&&m.p?(same?'m':'x'):'';
     const tip=x.p?`Слот: ${W.POL[x.p]}, мод: ${W.POL[m.p]||'без полярности'}${st==='m'?' — совпадает, расход вдвое меньше':st==='x'?' — не совпадает, расход на 25% больше':''}`:`Слот без полярности, мод: ${W.POL[m.p]||'без полярности'}`;
     const bonus=modBonus(m,x.r,setMult(m,setCounts(b)));
-    return `<div class="slot lbl" data-l="${label}" data-t="${type}" data-i="${idx}">
-      <div class="shead"><span class="bonus" title="${esc(bonus.full)}">${esc(bonus.short)}</span><span class="cst ${st}" title="${esc(tip)}">${polIcon(x.p||m.p)}${c<0?'+'+(-c):c}</span></div>
+    return `<div class="slot lbl${type==='s'&&moveFrom===idx?' moving':''}" data-l="${label}" data-t="${type}" data-i="${idx}"${type==='s'?' draggable="true"':''}>
+      <div class="shead"><span class="bonus" title="${esc(bonus.full)}">${esc(bonus.short)}</span><span class="cst ${st}" title="${esc(tip)}">${polIcon(x.p||m.p)}${c<0?'+'+(-c):c}</span></div>${type==='s'?'<button class="mv" title="Переставить мод" aria-label="Переставить мод">⇅</button>':''}
       <div class="row1">${pic(m.img,'',m.n,34)}<div class="mn">${esc(m.ru)}</div></div>
       <div class="stars" role="group" aria-label="Ранг ${x.r} из ${m.f}">${Array.from({length:m.f},(_,k)=>`<button class="star${k<x.r?' on':''}" data-r="${k+1}" aria-label="Ранг ${k+1}"></button>`).join('')}</div></div>`;
   }
@@ -641,6 +687,10 @@ function renderBuilder(){
       <div class="formas">${box('Формы',f.forma)}${bk==='melee'?box('Формы стойки',f.stance):box('Аура-формы',L.aura?f.aura:null)}${box('Умбра-формы',f.umbra||null)}${box('Омни-формы',f.omni||null)}${box('Всего форм',f.forma+f.aura+f.stance+f.umbra+f.omni)}</div>
       ${c.free<0?'<p class="msg err">Не хватает ёмкости. Нажмите «Минимум форм», чтобы подобрать полярности.</p>':''}`;
     $('#bsets').innerHTML=setsHtml(b);
+    if($('#bshards'))$('#bshards').innerHTML=b.sh.map((s,i)=>`<div class="shard" style="--sc:${s?SHCOL[s.c]:'var(--line2)'}"><div class="gem"></div>
+      <select class="field" data-shc="${i}" aria-label="Цвет осколка ${i+1}"><option value="">Пусто</option>${Object.entries(SHARDS).map(([k,v])=>`<option value="${k}" ${s&&s.c===k?'selected':''}>${v[0]}</option>`).join('')}</select>
+      ${s?`<select class="field" data-sho="${i}" aria-label="Эффект осколка ${i+1}">${SHARDS[s.c][1].map((o,k)=>`<option value="${k}" ${s.o===k?'selected':''}>${esc(o[2].replace('{v}',fmt(o[1]*(s.t?1.5:1))))}</option>`).join('')}</select>
+      <label style="font-size:12px;display:flex;gap:6px;align-items:center"><input type="checkbox" data-sht="${i}" ${s.t?'checked':''}> Закалённый (×1,5)</label>`:''}</div>`).join('');
     const sres=statsOf(b);
     let showD=false;try{showD=localStorage.getItem('wa:delta')==='1'}catch(_){}
     const dt=$('#bdelta');if(dt){dt.checked=showD;dt.onchange=e=>{try{localStorage.setItem('wa:delta',e.target.checked?'1':'0')}catch(_){}refresh()}}
@@ -653,9 +703,28 @@ function renderBuilder(){
       const good=lowerBetter(k)?d<0:d>0;const rel=base?` (${d>0?'+':'−'}${fmt(Math.abs(d/base*100))}%)`:'';
       const unit=u==='%'?' п.п.':(u==='×'?'':u);
       return box(k,`${val}<span class="dline ${good?'up':'down'}">${d>0?'+':'−'}${fmt(Math.abs(d))}${unit}${u==='%'?'':rel}</span><span class="dbase">база ${u==='×'?'×':''}${fmt(base)}${u==='%'?'%':u&&u!=='×'?u:''}</span>`)}).join('')}</div>${sres.dmg?elChips(sres.dmg):''}`;
+    const cv=$('#bcmp').value;let other=null;
+    if(cv==='rec')other=recBuild(b.k,it);else if(cv!==''){const o=dec((S.builds||[])[+cv]?.code||'');other=o&&unpackB(o)}
+    if(other){other.fac=b.fac;const so=statsOf(other);const mo=Object.fromEntries(so.rows.map(r=>[r[0],r[1]]));const cf=calc(other).f;
+      $('#bcmpout').innerHTML=`<div class="slabel">Сравнение: этот билд и «${esc(cv==='rec'?'Рекомендованный':(S.builds[+cv].title))}»</div><div class="cmp"><div class="cr ch"><span>Характеристика</span><span>Этот</span><span>Другой</span><span>Разница</span></div>
+        ${sres.rows.filter(r=>r[1]!=null&&mo[r[0]]!=null).map(([k,v,u])=>{const o=mo[k],d=v-o,good=lowerBetter(k)?d<0:d>0;return `<div class="cr"><span>${esc(k)}</span><span>${fmt(v)}${u==='%'?'%':''}</span><span>${fmt(o)}${u==='%'?'%':''}</span><span class="${Math.abs(d)<1e-6?'':good?'up':'down'}">${Math.abs(d)<1e-6?'=':(d>0?'+':'−')+fmt(Math.abs(d))}</span></div>`}).join('')}
+        <div class="cr"><span>Всего форм</span><span>${f.forma+f.aura+f.stance+f.umbra+f.omni}</span><span>${cf.forma+cf.aura+cf.stance+cf.umbra+cf.omni}</span><span></span></div></div>`}
+    else $('#bcmpout').innerHTML='';
     history.replaceState(null,'','#build');
   }
+  // Перестановка модов: перетаскивание мышью и кнопка ⇅ (для телефонов)
+  const swap=(i,k)=>{if(i===k||i==null||k==null)return;const a=b.s[i],c=b.s[k];[a.m,c.m]=[c.m,a.m];[a.r,c.r]=[c.r,a.r];refresh()};
+  const sl=$('#slots');
+  sl.addEventListener('dragstart',e=>{const s=e.target.closest('.slot[data-t="s"]');if(!s||!b.s[+s.dataset.i].m)return e.preventDefault();e.dataTransfer.setData('text/plain',s.dataset.i);e.dataTransfer.effectAllowed='move'});
+  sl.addEventListener('dragover',e=>{if(e.target.closest('.slot[data-t="s"]'))e.preventDefault()});
+  sl.addEventListener('drop',e=>{const s=e.target.closest('.slot[data-t="s"]');if(!s)return;e.preventDefault();swap(+e.dataTransfer.getData('text/plain'),+s.dataset.i)});
+  view.querySelector('.bwrap').addEventListener('change',e=>{const t=e.target;
+    if(t.dataset.shc!=null){const i=+t.dataset.shc;b.sh[i]=t.value?{c:t.value,o:0,t:false}:null;refresh()}
+    else if(t.dataset.sho!=null){b.sh[+t.dataset.sho].o=+t.value;refresh()}
+    else if(t.dataset.sht!=null){b.sh[+t.dataset.sht].t=t.checked;refresh()}});
   view.querySelector('.bwrap').addEventListener('click',e=>{const s=e.target.closest('.slot');if(!s)return;
+    if(e.target.closest('.mv')){const i=+s.dataset.i;moveFrom=moveFrom===i?null:i;refresh();return}
+    if(moveFrom!=null&&s.dataset.t==='s'){const i=moveFrom;moveFrom=null;swap(i,+s.dataset.i);return}
     const star=e.target.closest('.star');if(star){const t=s.dataset.t,i=+s.dataset.i,x=t==='a'?b.a:t==='x'?b.x:b.s[i];const r=+star.dataset.r;x.r=x.r===r?r-1:r;refresh();return}openPicker(b,it,bk,s.dataset.t,+s.dataset.i,refresh)});
 }
 function openPicker(b,it,bk,t,i,done){
@@ -664,11 +733,13 @@ function openPicker(b,it,bk,t,i,done){
   const isArc=t==='c';const slot=isArc?null:(t==='a'?b.a:t==='x'?b.x:b.s[i]);
   const used=new Set([...(b.a&&b.a.m?[b.a.m]:[]),...(b.x&&b.x.m?[b.x.m]:[]),...b.s.map(x=>x.m).filter(Boolean)]);
   const list=isArc?MODS.arcanes.filter(a=>L.arcT.includes(a.t)&&!b.c.includes(a.n)):MODS.mods.filter(m=>compat(m,it,bk,t)&&(!used.has(m.n)||m.n===slot.m));
+  const canRiven=!isArc&&t==='s'&&b.k==='arsenal'&&(!used.has('__riven')||slot.m==='__riven');
   ov.innerHTML=`<div role="dialog" aria-modal="true" aria-label="Выбор мода"><div class="pk-head">
      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><b style="font:700 15px var(--f-display);letter-spacing:.12em;text-transform:uppercase;color:var(--gold2)">${isArc?'Мистификатор':t==='a'?L.aura:t==='x'?'Эксилус':'Слот '+(i+1)}</b><button class="btn" data-x>Закрыть</button></div>
      ${isArc?'':`<div class="pk-pols"><span style="font:500 11px var(--f-data);color:var(--muted)">Полярность слота:</span>${['',...POLS].map(p=>`<button data-pol="${p}" class="${(slot.p||'')===p?'on':''}">${p?polIcon(p)+esc(W.POL[p]):'Нет'}</button>`).join('')}</div>`}
      ${!isArc&&slot.m?`<label style="display:flex;gap:10px;align-items:center;font:500 12px var(--f-data);color:var(--muted)">Ранг <input type="range" id="pkr" min="0" max="${MD(slot.m).f}" value="${slot.r}" style="flex:1"> <span id="pkrv">${slot.r}</span></label>`:''}
      <input class="field" id="pkq" type="search" placeholder="Поиск по названию или эффекту" aria-label="Поиск мода"></div>
+    ${canRiven?`<div class="pk-riv"><button class="btn" data-riv>${slot.m==='__riven'?'Изменить ривен-мод':'+ Ривен-мод со своими характеристиками'}</button><div id="rived" hidden></div></div>`:''}
     <div class="pk-list" id="pkl"></div>
     <div class="pk-foot">${(isArc?b.c[i]:slot.m)?'<button class="btn danger" data-rm>Убрать</button>':''}<span style="font:500 11.5px var(--f-data);color:var(--muted)">Доступно: ${list.length}</span></div></div>`;
   document.body.appendChild(ov);
@@ -683,6 +754,15 @@ function openPicker(b,it,bk,t,i,done){
     if(e.target.closest('[data-rm]')){if(isArc)b.c[i]=null;else{slot.m=null;slot.r=0}return close()}
     const it2=e.target.closest('[data-n]');if(it2){if(isArc)b.c[i]=it2.dataset.n;else{slot.m=it2.dataset.n;slot.r=MD(slot.m).f}return close()}
   };
+  const rivBtn=ov.querySelector('[data-riv]');
+  if(rivBtn)rivBtn.onclick=e=>{e.stopPropagation();const r=b.riv||{p:'madurai',cost:18,st:[['',0],['',0],['',0],['',0]]};while(r.st.length<4)r.st.push(['',0]);
+    const ed=ov.querySelector('#rived');ed.hidden=false;
+    ed.innerHTML=`<div class="rivgrid">${r.st.map(([k,v],n)=>`<select class="field" data-rk="${n}" aria-label="Характеристика ${n+1}"><option value="">—</option>${RIVST.map(s=>`<option value="${s[0]}" ${k===s[0]?'selected':''}>${s[2]}</option>`).join('')}</select><input class="field" type="number" step="0.1" data-rv="${n}" value="${v||''}" placeholder="+%" aria-label="Значение ${n+1}">`).join('')}</div>
+      <div class="inline" style="margin-top:8px"><label style="font-size:13px;display:flex;gap:6px;align-items:center">Полярность <select class="field" id="rpol" style="width:auto">${POLS.filter(p=>p!=='any'&&p!=='umbra').map(p=>`<option value="${p}" ${r.p===p?'selected':''}>${W.POL[p]}</option>`).join('')}</select></label>
+      <label style="font-size:13px;display:flex;gap:6px;align-items:center">Расход на 8 ранге <input class="field" type="number" id="rcost" min="8" max="18" value="${r.cost}" style="width:80px"></label><button class="btn gold" id="rok">Поставить</button></div>
+      <p class="sub" style="font-size:12px">Отрицательные значения пишите с минусом, например −40 к мультивыстрелу.</p>`;
+    ed.querySelector('#rok').onclick=ev=>{ev.stopPropagation();r.st=r.st.map((_,n)=>[ed.querySelector(`[data-rk="${n}"]`).value,parseFloat(ed.querySelector(`[data-rv="${n}"]`).value)||0]);
+      r.p=ed.querySelector('#rpol').value;r.cost=Math.min(18,Math.max(8,+ed.querySelector('#rcost').value||18));b.riv=r;slot.m='__riven';slot.r=8;close()}};
   const rr=ov.querySelector('#pkr');if(rr)rr.oninput=e=>{slot.r=+e.target.value;ov.querySelector('#pkrv').textContent=slot.r;done()};
   ov.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();close()}});
 }
