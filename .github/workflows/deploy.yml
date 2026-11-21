@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: '0 6 * * 1'   # каждый понедельник, 06:00 UTC
+    - cron: '0 6 * * *'   # каждый день, 06:00 UTC (цены с рынка и данные игры)
   workflow_dispatch:
 
 permissions:
@@ -30,6 +30,9 @@ jobs:
           path: cache
           key: wfcd-${{ github.run_id }}
           restore-keys: wfcd-
+      - name: Цены с warframe.market
+        run: python prices.py --max-minutes 10
+        continue-on-error: true
       - run: python build.py
       - uses: actions/upload-pages-artifact@v3
         with:

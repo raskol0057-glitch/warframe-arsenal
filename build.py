@@ -8,7 +8,7 @@ WFCD warframe-items (та же база иконок, что на Warframe Wiki)
 
 Запуск:  python build.py
 """
-import datetime, io, json, os, re, shutil, sys, urllib.request
+import datetime, io, json, os, re, shutil, sys, urllib.parse, urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from PIL import Image
 
@@ -183,7 +183,7 @@ def build_mods(mods_raw, arcanes_raw, ru):
         for e in d:
             if e['location'] in seen: continue
             c = e.get('chance') or 0
-            seen.add(e['location']); out.append([e['location'], round(c * 100 if c <= 1 else c, 2)])
+            seen.add(e['location']); out.append([e['location'], round(c, 2)])  # в данных уже проценты
             if len(out) == 3: break
         return out
     best = {}
@@ -315,7 +315,7 @@ def main():
     rel = {}
     for r in relics:
         nm = re.sub(r'\s+(Intact|Exceptional|Flawless|Radiant)$', '', r['name'])
-        if r.get('imageName'): rel.setdefault(nm.lower(), r)
+        if r.get('imageName') and (nm.lower() not in rel or r['name'].endswith('Intact')): rel[nm.lower()] = r
     for r in D['relics']:
         it = rel.get(r['name'].lower())
         r['img'] = it['imageName'] if it else None
@@ -352,12 +352,95 @@ def main():
 
     counts = {}
     for w in weapons: counts[w['category']] = counts.get(w['category'], 0) + 1
+    # Цены с warframe.market (собираются prices.py в GitHub Actions)
+    pp = os.path.join(CACHE, 'prices.json')
+    prices = {k: v.get('p') for k, v in json.load(open(pp, encoding='utf-8')).items()} if os.path.exists(pp) else {}
+    for coll in (weapons, frames, companions):
+        for x in coll:
+            p = prices.get(x['name'] + ' Set')
+            if p: x['pr'] = p
+    for a in arcanes:
+        p = prices.get(a['n'])
+        if p: a['pr'] = p
+    # Содержимое реликвий: награды, шанс (целая реликвия), ссылка на предмет каталога и цена
+    catalog, catru = {}, {}
+    for kind, coll in (('arsenal', weapons), ('frames', frames), ('companions', companions)):
+        for x in coll: catalog.setdefault(x['name'], kind); catru.setdefault(x['name'], x['ru'])
+    def link(name):
+        w = name.split()
+        for i in range(len(w), 0, -1):
+            n = ' '.join(w[:i])
+            if n in catalog: return catalog[n] + ':' + n
+        return None
+    for r in D['relics']:
+        it = rel.get(r['name'].lower())
+        if not it: continue
+        rw, ev = [], 0
+        for x in sorted(it.get('rewards') or [], key=lambda x: x.get('chance') or 0):
+            n = x['item']['name']; p = prices.get(n)
+            k = link(n); rn = (ru.get(x['item'].get('uniqueName')) or {}).get('name') or n
+            if k:  # «Ствол» -> «Акстилетто Прайм: ствол»; «Nikana Prime Blueprint» -> «Никана Прайм: чертёж»
+                base_en = k.split(':', 1)[1]; base_ru = catru.get(base_en, base_en)
+                part = n[len(base_en):].strip()
+                if rn == n: rn = PART_RU.get(part.replace(' Blueprint', '').strip(), part.replace('Blueprint', 'чертёж').strip() or 'чертёж') + (' (чертёж)' if part.endswith('Blueprint') and part != 'Blueprint' else '')
+                if base_ru.lower() not in rn.lower(): rn = f'{base_ru}: {rn[:1].lower() + rn[1:]}'
+            if rn == n and 'Forma Blueprint' in n: rn = n.replace('2X Forma Blueprint', '2 чертежа Формы').replace('Forma Blueprint', 'Чертёж Формы')
+            rw.append({'n': n, 'ru': rn, 'r': x.get('rarity'), 'c': x.get('chance'), 'k': k, 'p': p})
+            if p and x.get('chance'): ev += p * x['chance'] / 100
+        r['rw'] = rw
+        if ev: r['ev'] = round(ev, 1)
+        if prices.get(r['name'] + ' Relic'): r['pr'] = prices[r['name'] + ' Relic']
+    # Бестиарий
+    def fixloc(t):  # «Gorgon Blueprint Gorgon Blueprint» -> «Gorgon Blueprint»
+        w = t.split(); h = len(w) // 2
+        return ' '.join(w[:h]) if len(w) % 2 == 0 and w[:h] == w[h:] else t
+    enemies = []
+    for e in fetch_json('Enemy'):
+        if not e.get('name') or e.get('type') in ('Orbiter', 'Warframe'): continue
+        drops = sorted([d for d in e.get('drops') or [] if d.get('type') in ('Mod Locations', 'Blueprint Locations')],
+                       key=lambda d: -(d.get('chance') or 0))
+        res = [[x['type'], x.get('amount') or 0] for x in e.get('resistances') or [] if x.get('type')]
+        enemies.append({'n': e['name'], 'f': e.get('type'), 'hp': e.get('health'), 'sh': e.get('shield'), 'ar': e.get('armor'),
+                        'res': res, 'img': e.get('imageName'),
+                        'dr': [[fixloc(d['location']), round(d.get('chance') or 0, 3)] for d in drops[:20]]})
+    seen_e = set(); uniq = []
+    for e in enemies:  # одинаковые варианты (тот же моб с теми же характеристиками) показываем один раз
+        key = (e['n'], e['f'], e['hp'], e['sh'], e['ar'])
+        if key in seen_e: continue
+        seen_e.add(key); uniq.append(e)
+    enemies = uniq
+    enemies.sort(key=lambda x: (x['f'] or '', x['n']))
+    # Картинки мобов: в базе WFCD их нет, берём миниатюры со страниц вики-зеркала (кэшируется)
+    ep = os.path.join(CACHE, 'enemy_img.json')
+    emap = json.load(open(ep, encoding='utf-8')) if os.path.exists(ep) else {}
+    todo = sorted({e['n'] for e in enemies} - set(emap))
+    for i in range(0, len(todo), 50):
+        try:
+            q = urllib.parse.quote('|'.join(todo[i:i + 50]))
+            d = json.loads(get('https://warframe.fandom.com/api.php?action=query&prop=pageimages&piprop=thumbnail&pithumbsize=112'
+                               '&redirects=1&format=json&formatversion=2&titles=' + q))['query']
+            back = {r['to']: r['from'] for r in d.get('redirects', [])}
+            for n in todo[i:i + 50]: emap.setdefault(n, None)
+            for p in d['pages']:
+                src = (p.get('thumbnail') or {}).get('source')
+                emap[back.get(p['title'], p['title'])] = src
+        except Exception as ex:
+            print('! картинки мобов', ex)
+    json.dump(emap, open(ep, 'w', encoding='utf-8'))
+    for e in enemies:
+        u = emap.get(e['n'])
+        if u:
+            e['img'] = 'e-' + re.sub(r'\W+', '', e['n']) + '.png'
+            extra[e['img']] = u
+        else:
+            e['img'] = None
     out = {'built': datetime.date.today().isoformat(), 'weapons': weapons, 'frames': frames, 'companions': companions,
            'relics': D['relics'], 'resources': D['resources'], 'fresh': fresh[:48], 'factionMods': faction_mods,
            'cats': sorted(counts, key=lambda c: -counts[c]), 'guide': D['guide']}
     mout = {'mods': mods, 'arcanes': arcanes, 'focus': focus, 'sets': sets}
+    bout = {'enemies': enemies}
 
-    for coll in (weapons, frames, companions, D['resources'], D['relics'], mods, arcanes):
+    for coll in (weapons, frames, companions, D['resources'], D['relics'], mods, arcanes, enemies):
         for x in coll:
             if x.get('img'): need.add(x['img'])
             for mat in x.get('materials', []):
@@ -390,14 +473,14 @@ def main():
         if 'img' in x: x['img'] = files.get(x['img']) if x['img'] else None
         for mat in x.get('materials', []): mat['img'] = files.get(mat['img']) if mat.get('img') else None
         for a in (x.get('st') or {}).get('ab', []): a['img'] = files.get(a['img']) if a.get('img') else None
-    for coll in (weapons, frames, companions, D['resources'], D['relics'], mods, arcanes):
+    for coll in (weapons, frames, companions, D['resources'], D['relics'], mods, arcanes, enemies):
         for x in coll: fix(x)
 
     def dump(o, n):  # единое написание названий по всему сайту
         t = json.dumps(o, ensure_ascii=False, separators=(',', ':'))
         for x, y in (('Грайнир', 'Гренир'), ('Гринир', 'Гренир'), ('Зарьман', 'Зариман')): t = t.replace(x, y)
         open(os.path.join(OUT, n), 'w', encoding='utf-8').write(t)
-    dump(out, 'data.json'); dump(mout, 'mods.json')
+    dump(out, 'data.json'); dump(mout, 'mods.json'); dump(bout, 'bestiary.json')
     ver = datetime.datetime.now().strftime('%Y%m%d%H%M')  # новая версия файлов при каждой сборке — браузер не держит старые
     open(os.path.join(OUT, 'index.html'), 'w', encoding='utf-8').write(open(os.path.join(ROOT, 'app.html'), encoding='utf-8').read().replace('__V__', ver))
     for f in ('app.js', 'content.js', 'lore.js', 'config.js'):

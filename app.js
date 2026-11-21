@@ -124,7 +124,8 @@ let cur='',loreTimer=null;
 function route(){
   const h=decodeURIComponent(location.hash.slice(1))||'arsenal';const m=h.match(/^lore-(\d+)$/);const wk=h.match(/^wiki-(\w+)$/);const bm=h.match(/^build(?:=(.*))?$/);
   const v=m?'lore':wk?'wiki':bm?'build':h;
-  const known=['arsenal','frames','companions','mods','arcanes','build','wiki','relics','resources','new','lore','guide','profile'];
+  const known=['arsenal','frames','companions','mods','arcanes','build','now','bestiary','wiki','relics','resources','new','lore','guide','profile'];
+  clearInterval(nowTimer);
   const vv=known.includes(v)?v:'arsenal';
   document.querySelectorAll('#tabs a').forEach(a=>a.classList.toggle('on',a.dataset.v===vv));
   const ns=document.getElementById('navsel');if(ns)ns.value=vv;
@@ -132,7 +133,7 @@ function route(){
   if(cur==='lore'&&vv!=='lore')stopLore();
   if(vv==='lore'&&cur==='lore'&&m){showEv(+m[1]-1,true);return}
   cur=vv;window.scrollTo(0,0);
-  ({arsenal:()=>catalog('arsenal'),frames:()=>catalog('frames'),companions:()=>catalog('companions'),mods:modsView,arcanes:arcanesView,wiki:()=>wiki(wk?wk[1]:'factions'),build:()=>builder(bm&&bm[1]),relics:()=>table('relics'),resources:()=>table('resources'),new:fresh,lore:()=>lore(m?+m[1]-1:0),guide,profile})[vv]();
+  ({arsenal:()=>catalog('arsenal'),frames:()=>catalog('frames'),companions:()=>catalog('companions'),mods:modsView,arcanes:arcanesView,wiki:()=>wiki(wk?wk[1]:'factions'),build:()=>builder(bm&&bm[1]),now:nowView,bestiary:bestiaryView,relics:()=>table('relics'),resources:()=>table('resources'),new:fresh,lore:()=>lore(m?+m[1]-1:0),guide,profile})[vv]();
 }
 addEventListener('hashchange',route);
 
@@ -214,6 +215,7 @@ function openItem(kind,it,cb){
    <div class="slabel">Состав и получение</div>
    ${it.parts.map(p=>`<div class="part"><b>${esc(p.name)}</b><span class="q">×${p.qty}</span><div class="w">${esc(p.where)}${p.relics?`<div class="rel">${relhtml(p.relics)}</div>`:''}</div></div>`).join('')||'<p class="route">Отдельных деталей нет.</p>'}
    ${it.materials.length?`<div class="slabel">Материалы рецепта</div><div class="chips">${it.materials.map(m=>`<button class="chip" data-res="${esc(m.en||m.name)}">${pic(m.img||D.matImg[m.en||m.name],'',m.name,24)}${esc(m.name)} × ${num(m.qty)}</button>`).join('')}</div>`:''}
+   ${it.pr?`<div class="stats" style="margin-top:14px">${box('Набор на рынке',`≈ ${it.pr} платины <a href="https://warframe.market/items/${esc(it.name.toLowerCase().replace(/[^a-z0-9]+/g,'_'))}_set" target="_blank" rel="noopener" style="font:500 12px var(--f-body)">warframe.market</a>`)}</div>`:''}
    ${statsHtml(kind,it)}
    <div id="drec"></div>
    <div class="src">Источник: <a href="${esc(it.source)}" target="_blank" rel="noopener">WARFRAME Wiki — ${esc(it.name)}</a>; состав и реликвии — WFCD. Билды сообщества: <a href="https://overframe.gg/search/?q=${encodeURIComponent(it.name)}" target="_blank" rel="noopener">Overframe</a>.</div>`;
@@ -237,11 +239,16 @@ function table(kind){
    <div class="tools short"><input class="field q" id="q" type="search" placeholder="${kind==='relics'?'Например, Axi A1 или Lith':'Название ресурса или планета'}" aria-label="Поиск" value="${esc(st.q)}"></div>
    <div class="info"><span id="cnt"></span></div><div class="rows" id="rows"></div><div class="more" id="more"></div></div>${foot()}`;
   let arr=[],shown=0;
+  const RAR3={Common:'обычная',Uncommon:'необычная',Rare:'редкая'};
+  const fis=k=>{const era=(k.name.split(' ')[0]||'');const f=WS&&WS.fissures?WS.fissures.filter(x=>x.tier===era&&!x.isStorm&&!x.expired):[];
+    return f.length?`<span class="tag ok" style="display:inline-block;margin-top:6px" title="${esc(f.map(x=>x.node+' — '+x.missionType+(x.isHard?' (Стальной путь)':'')).join('\n'))}">Разломов ${esc(era)} сейчас: ${f.filter(x=>!x.isHard).length} + ${f.filter(x=>x.isHard).length} СП</span>`:''};
   const row=it=>kind==='relics'
-    ?`<div class="row cut">${pic(it.img,'',it.name,52)||'<span></span>'}<div><div class="t">${esc(it.name)}</div><div class="s">${esc(it.status)}</div>${it.vaulted!=null?`<span class="tag ${it.vaulted?'v':'ok'}" style="display:inline-block;margin-top:6px">${it.vaulted?'Сейчас в хранилище':'Сейчас выпадает'}</span>`:''}</div><div class="w">${esc(it.where)}</div></div>`
-    :`<div class="row cut">${pic(it.img,'',it.name,52)||'<span></span>'}<div><div class="t">${esc(it.ru)}</div><div class="s">${esc(it.name)}</div></div><div class="w">${esc(it.where)}</div></div>`;
+    ?`<div class="row cut">${pic(it.img,'',it.name,52)||'<span></span>'}<div><div class="t">${esc(it.name)}</div><div class="s">${esc(it.status)}</div>${it.vaulted!=null?`<span class="tag ${it.vaulted?'v':'ok'}" style="display:inline-block;margin-top:6px">${it.vaulted?'Сейчас в хранилище':'Сейчас выпадает'}</span> `:''}${fis(it)}${it.ev?` <span class="tag p" style="display:inline-block;margin-top:6px" title="Ожидаемая ценность содержимого целой реликвии по ценам warframe.market">≈ ${fmt(it.ev)} пл.</span>`:''}</div>
+      <div class="w">${esc(it.where)}${it.rw?`<div class="chips" style="margin-top:8px">${it.rw.map(x=>`<${x.k?'button':'span'} class="chip"${x.k?` data-item="${esc(x.k)}"`:''} title="${esc(x.n)} · ${esc(RAR3[x.r]||x.r||'')} · ${fmt(x.c)}%"><span class="r-${x.r}">●</span>${esc(x.ru)}${x.p?` · ${x.p} пл.`:''}</${x.k?'button':'span'}>`).join('')}</div>`:''}</div></div>`
+    :`<div class="row cut">${pic(it.img,'',it.name,52)||'<span></span>'}<div><div class="t">${esc(it.ru)}</div><div class="s">${esc(it.name)}</div></div><div class="w">${esc(it.where)}${(()=>{const u=usedIn(it);return u.length?`<div class="slabel" style="margin:10px 0 6px">Нужен для (${u.length})</div><div class="chips">${u.slice(0,24).map(([k,x,q])=>`<button class="chip" data-item="${k}:${esc(x.name)}">${pic(x.img,'',x.name,24)}${esc(x.ru)} × ${num(q)}</button>`).join('')}${u.length>24?`<span class="chip">и ещё ${u.length-24}</span>`:''}</div>`:''})()}</div></div>`;
   const more=()=>{const s=arr.slice(shown,shown+80);shown+=s.length;$('#rows').insertAdjacentHTML('beforeend',s.map(row).join('')||(shown?'':'<div class="empty">Ничего не найдено.</div>'));
     $('#more').innerHTML=shown<arr.length?`<button class="btn" id="mbtn">Показать ещё (${num(arr.length-shown)})</button>`:''};
+  if(kind==='relics'&&!WS)loadWS().then(()=>{if(cur==='relics'){$('#rows').innerHTML='';shown=0;more()}}).catch(()=>{});
   const apply=()=>{const q=st.q.toLowerCase().trim();arr=list.filter(it=>!q||match(it._s,q));$('#cnt').textContent=`Найдено: ${num(arr.length)}`;$('#rows').innerHTML='';shown=0;more()};
   let t;$('#q').addEventListener('input',e=>{clearTimeout(t);t=setTimeout(()=>{st.q=e.target.value;apply()},140)});
   $('#more').onclick=e=>{if(e.target.id==='mbtn')more()};
@@ -556,7 +563,7 @@ function recInDrawer(kind,it){
     if(!b){el.innerHTML=`<div class="btnrow"><a class="btn" href="#build=${own}">Собрать билд в конструкторе</a></div>`;return}
     const c=calc(b),f=c.f,ms=[...(b.a&&b.a.m?[b.a]:[]),...(b.x&&b.x.m?[b.x]:[]),...b.s.filter(x=>x.m)];
     el.innerHTML=`<div class="slabel">Рекомендованный билд — ${esc(b.title)}</div>
-      <div class="rec">${ms.map(x=>{const m=MD(x.m);return `<div class="recm">${pic(m.img,'',m.n,28)}<span title="${esc(m.ru)}">${esc(m.ru)}</span></div>`}).join('')}${b.c.filter(Boolean).map(n=>{const a=MODS.arcN[n];return `<div class="recm">${pic(a.img,'',a.n,28)}<span>${esc(a.ru)}</span></div>`}).join('')}</div>
+      <div class="rec">${ms.map(x=>{const m=MD(x.m);return `<button class="recm" data-mod="${esc(m.n)}">${pic(m.img,'',m.n,28)}<span title="${esc(m.ru)}">${esc(m.ru)}</span></button>`}).join('')}${b.c.filter(Boolean).map(n=>{const a=MODS.arcN[n];return `<div class="recm">${pic(a.img,'',a.n,28)}<span>${esc(a.ru)}</span></div>`}).join('')}</div>
       <p class="route" style="margin-top:10px">Нужно форм: <b>${f.forma}</b>${f.aura?` + аура-форм: ${f.aura}`:''}${f.stance?` + форм стойки: ${f.stance}`:''}${f.umbra?` + Умбра-форм: ${f.umbra}`:''}${f.omni?` + Омни-форм: ${f.omni}`:''}. Ёмкость: ${c.used} / ${c.cap} (${c.base} с Реактором Орокин или Катализатором${c.bonus?` + ${c.bonus} от ${kind==='frames'?'ауры':'стойки'}`:''}).</p>
       <div class="btnrow"><a class="btn gold" href="#build=${enc(packB(b))}">Открыть в конструкторе</a><a class="btn" href="#build=${own}">Собрать свой</a></div>
       <p class="sub" style="font-size:12.5px">Базовый билд по типу ${kind==='frames'?'варфрейма':kind==='companions'?'компаньона':'оружия'}. Prime-моды можно заменить обычными версиями. Подробные билды игроков — на Overframe по ссылке ниже.</p>`;
@@ -713,8 +720,10 @@ function openMod(m){
     <div class="tags"><span class="tag r-${m.r}">${esc(RAR[m.r]||m.r||'')}</span>${m.aug?'<span class="tag p">Аугмент</span>':''}${m.exi?'<span class="tag">Эксилус</span>':''}${m.set?`<span class="tag">Набор ${esc(m.set)}</span>`:''}</div></div></div>
    <div class="stats">${box('Полярность',polIcon(m.p)+esc(W.POL[m.p]||'—'))}${box(m.d<0?'Даёт ёмкости':'Расход ёмкости',m.d<0?`+${-m.d} → +${-m.d+m.f}`:`${m.d} → ${m.d+m.f}`)}${box('Рангов',m.f)}</div>
    <div class="slabel">Эффект на максимальном ранге</div><p class="modtext">${esc((m.rs||[]).join('\n'))}</p>${m.rs.join('')!==m.en.join('')?`<p class="sub" style="font-size:12.5px">${esc(m.en.join(' · '))}</p>`:''}
-   ${dropsHtml(m.dr)}`;
+   ${dropsHtml(m.dr)}<div id="menemy"></div>`;
   $('#scrim').hidden=false;d.hidden=false;d.scrollTop=0;d.onclick=null;
+  loadBest().then(B=>{const el=$('#menemy');if(!el)return;const l=(B.byMod[m.n]||[]).sort((a,b)=>b[1]-a[1]);
+    if(l.length)el.innerHTML=`<div class="slabel">С кого падает (${l.length})</div><div class="chips">${l.slice(0,40).map(([e,c])=>`<button class="chip" data-enemy="${esc(e.n)}">${pic(e.img,'',e.n,24)}${esc(e.n)} · ${fmt(c)}%</button>`).join('')}</div><p class="sub" style="font-size:12px">Шанс выпадения с одного убийства.</p>`});
 }
 const ARCT={'Warframe Arcane':'Варфрейм','Operator Arcane':'Оператор','Primary Arcane':'Основное','Secondary Arcane':'Вторичное','Melee Arcane':'Ближний бой','Amp Arcane':'Усилитель','Zaw Arcane':'Зо','Kitgun Arcane':'Китган','Bow Arcane':'Лук','Shotgun Arcane':'Дробовик','Arcane':'Прочие'};
 function arcanesView(){
@@ -729,10 +738,7 @@ function arcanesView(){
       $('#grid').innerHTML=arr.map((a,i)=>`<button class="modc cut" data-i="${i}">${pic(a.img,'',a.n,52)||'<span></span>'}<div style="min-width:0"><div class="nm">${esc(a.ru)}</div><div class="meta"><span>${esc(ARCT[a.t]||a.t)}</span><span class="r-${a.r}">${esc(RAR[a.r]||'')}</span></div><div class="meta" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc((a.rs[0]||'').split('\n')[0])}</div></div></button>`).join('')||'<div class="empty" style="grid-column:1/-1">Ничего не найдено.</div>'};
     let tm;$('#q').addEventListener('input',e=>{clearTimeout(tm);tm=setTimeout(()=>{st.q=e.target.value;apply()},140)});
     $('#t').onchange=e=>{st.t=e.target.value;apply()};
-    $('#grid').onclick=e=>{const c=e.target.closest('.modc');if(!c)return;const a=arr[+c.dataset.i];onClose=null;const d=$('#drawer');
-      d.innerHTML=`<button class="close" id="dclose" aria-label="Закрыть">×</button><div class="dhead">${pic(a.img,'',a.n,132)||'<div class="none">A</div>'}<div><h2>${esc(a.ru)}</h2><div class="en">${esc(a.n)} · ${esc(ARCT[a.t]||a.t)}</div><div class="tags"><span class="tag r-${a.r}">${esc(RAR[a.r]||'')}</span><span class="tag">Рангов: ${a.f}</span></div></div></div>
-        <div class="slabel">Эффект на максимальном ранге</div><p class="modtext">${esc(a.rs.join('\n'))}</p>${dropsHtml(a.dr)}`;
-      $('#scrim').hidden=false;d.hidden=false;d.scrollTop=0;d.onclick=null};
+    $('#grid').onclick=e=>{const c=e.target.closest('.modc');if(c)openArc(arr[+c.dataset.i])};
     apply();
   });
 }
@@ -769,6 +775,149 @@ function wiki(sub){
         ${groups.map(g=>{const l=ways.filter(w=>w.k===g);return l.length?`<div class="slabel">${esc(W.FK[g])}</div>${l.map(w=>{const tr=W.FOCUS_RU[w.n];return `<div class="fway"><div><b>${esc(tr?tr[0]:w.n)}</b><small>${esc(w.n)}</small></div><div>${esc(tr?tr[1]:w.en)}</div></div>`}).join('')}`:''}).join('')}</section>`}).join('')+'</div>'+foot();
   });
 }
+
+/* ---------- Бестиарий ---------- */
+let BEST=null,bestP=null;
+const EF={Grineer:'Гренир',Corpus:'Корпус',Infestation:'Заражённые',Orokin:'Орокин (Порченые)',Sentient:'Сентиенты',Neutral:'Нейтральные',Stalker:'Сталкер и Аколиты',Tenno:'Тэнно',Predator:'Хищники',Prey:'Добыча'};
+const EFID={Grineer:'grineer',Corpus:'corpus',Infestation:'infested',Orokin:'orokin',Sentient:'sentient'};
+const RESRU={'Shield':'Щиты','Proto Shield':'Прото-щиты','Ferrite Armor':'Ферритовая броня','Alloy Armor':'Броня из сплава','Cloned Flesh':'Клонированная плоть','Flesh':'Плоть','Robotic':'Роботизированное','Infested':'Заражённое','Infested Flesh':'Заражённая плоть','Infested Sinew':'Заражённые сухожилия','Fossilized':'Окаменелое','Machinery':'Механизмы','Object':'Объект','Sinew':'Сухожилия','Tenno Flesh':'Плоть Тэнно','Tenno Shield':'Щиты Тэнно','Tenno Armor':'Броня Тэнно','Indifferent Facade':'Безразличный фасад','Overguard':'Сверхщит'};
+function loadBest(){
+  if(BEST)return Promise.resolve(BEST);
+  if(!bestP)bestP=fetch('bestiary.json?v='+(window.WA_V||'')).then(r=>r.json()).then(j=>{
+    j.byMod={};j.byN={};for(const e of j.enemies){j.byN[e.n]=e;e._s=(e.n+' '+(EF[e.f]||e.f||'')+' '+e.dr.map(d=>d[0]).join(' ')).toLowerCase();for(const [m,c] of e.dr)(j.byMod[m]=j.byMod[m]||[]).push([e,c])}
+    BEST=j;return j});
+  return bestP;
+}
+state.bestiary={q:'',f:''};
+function bestiaryView(){
+  view.innerHTML='<div class="loading">ЗАГРУЗКА БЕСТИАРИЯ…</div>';
+  loadBest().then(B=>{const st=state.bestiary;const facs=[...new Set(B.enemies.map(e=>e.f).filter(Boolean))];
+    view.innerHTML=`<div class="wrap"><div class="head"><div><div class="eyebrow">Кодекс</div><h1>Бестиарий</h1><p class="sub">Противники всех фракций: здоровье, щиты, броня, типы защиты, уязвимости фракции и что с них выпадает. Названия — как в английской версии игры.</p></div></div>
+     <div class="tools" style="grid-template-columns:minmax(200px,1fr) minmax(160px,240px)"><input class="field q" id="q" type="search" placeholder="Имя противника или мод, который с него падает" aria-label="Поиск" value="${esc(st.q)}">
+      <select class="field" id="f" aria-label="Фракция"><option value="">Все фракции</option>${facs.map(f=>`<option value="${esc(f)}" ${st.f===f?'selected':''}>${esc(EF[f]||f)} (${B.enemies.filter(e=>e.f===f).length})</option>`).join('')}</select></div>
+     <div class="info"><span id="cnt"></span></div><div class="modgrid" id="grid"></div><div class="more" id="more"></div></div>${foot()}`;
+    let arr=[],shown=0;
+    const card=(e,i)=>`<button class="modc cut" data-i="${i}">${pic(e.img,'',e.n,52)||'<span></span>'}<div style="min-width:0"><div class="nm">${esc(e.n)}</div><div class="meta">${esc(EF[e.f]||e.f||'')}</div><div class="meta">❤ ${num(e.hp||0)} · ⛨ ${num(e.sh||0)} · ▣ ${num(e.ar||0)}</div></div></button>`;
+    const more=()=>{const s=arr.slice(shown,shown+90);$('#grid').insertAdjacentHTML('beforeend',s.map((e,k)=>card(e,shown+k)).join('')||(shown?'':'<div class="empty" style="grid-column:1/-1">Ничего не найдено.</div>'));shown+=s.length;
+      $('#more').innerHTML=shown<arr.length?`<button class="btn" id="mbtn">Показать ещё (${num(arr.length-shown)})</button>`:''};
+    const apply=()=>{const q=st.q.toLowerCase().trim();arr=B.enemies.filter(e=>(!q||match(e._s,q))&&(!st.f||e.f===st.f));$('#cnt').textContent=`Найдено: ${num(arr.length)}`;$('#grid').innerHTML='';shown=0;more()};
+    let tm;$('#q').addEventListener('input',e=>{clearTimeout(tm);tm=setTimeout(()=>{st.q=e.target.value;apply()},140)});
+    $('#f').onchange=e=>{st.f=e.target.value;apply()};
+    $('#more').onclick=e=>{if(e.target.id==='mbtn')more()};
+    $('#grid').onclick=e=>{const c=e.target.closest('.modc');if(c)openEnemy(arr[+c.dataset.i])};
+    apply();
+  });
+}
+function openEnemy(e){
+  if(!MODS){loadMods().then(()=>openEnemy(e));return}
+  onClose=null;const d=$('#drawer');const fac=W.FACTIONS.find(f=>f.id===EFID[e.f]);
+  const chip=(x,s)=>`<span class="el" style="color:${W.ELC[x]}">${s} ${esc(W.EL[x])}</span>`;
+  d.innerHTML=`<button class="close" id="dclose" aria-label="Закрыть">×</button>
+   <div class="dhead">${pic(e.img,'',e.n,132)||'<div class="none">?</div>'}<div><h2>${esc(e.n)}</h2><div class="en">${esc(EF[e.f]||e.f||'')}</div></div></div>
+   <div class="stats">${box('Здоровье',num(e.hp||0))}${box('Щиты',num(e.sh||0))}${box('Броня',num(e.ar||0))}</div>
+   ${e.res&&e.res.length?`<div class="slabel">Типы защиты</div><div class="chips">${e.res.map(([t,a])=>`<span class="chip">${esc(RESRU[t]||t)}${a?' · '+num(a):''}</span>`).join('')}</div>`:''}
+   ${fac?`<div class="slabel">Уязвимости фракции «${esc(fac.name)}»</div><div class="elchips">${fac.wk.map(x=>chip(x,'+50%')).join('')}${fac.rs.map(x=>chip(x,'−50%')).join('')}</div>`:''}
+   <div class="slabel">Что выпадает</div>${e.dr.length?`<div class="chips">${e.dr.map(([m,c])=>{const mm=MODS&&MODS.byN[m];return mm?`<button class="chip" data-mod="${esc(m)}">${pic(mm.img,'',m,24)}${esc(mm.ru)} · ${fmt(c)}%</button>`:`<span class="chip">${esc(m)} · ${fmt(c)}%</span>`}).join('')}</div><p class="sub" style="font-size:12px">Шанс выпадения с одного убийства. Нажмите на мод, чтобы открыть его.</p>`:'<p class="route">Своей таблицы выпадения нет.</p>'}`;
+  $('#scrim').hidden=false;d.hidden=false;d.scrollTop=0;d.onclick=null;
+}
+function openArc(a){
+  onClose=null;const d=$('#drawer');
+  d.innerHTML=`<button class="close" id="dclose" aria-label="Закрыть">×</button><div class="dhead">${pic(a.img,'',a.n,132)||'<div class="none">A</div>'}<div><h2>${esc(a.ru)}</h2><div class="en">${esc(a.n)} · ${esc(ARCT[a.t]||a.t)}</div><div class="tags"><span class="tag r-${a.r}">${esc(RAR[a.r]||'')}</span><span class="tag">Рангов: ${a.f}</span>${a.pr?`<span class="tag p">≈ ${a.pr} пл. за штуку</span>`:''}</div></div></div>
+    <div class="slabel">Эффект на максимальном ранге</div><p class="modtext">${esc(a.rs.join('\n'))}</p>${dropsHtml(a.dr)}`;
+  $('#scrim').hidden=false;d.hidden=false;d.scrollTop=0;d.onclick=null;
+}
+// Где нужен ресурс: все рецепты каталога, где он есть среди материалов
+function usedIn(r){
+  if(!D.usage){D.usage={};for(const [k,l] of [['arsenal',D.weapons],['frames',D.frames],['companions',D.companions]])for(const x of l)for(const m of x.materials){const key=(m.en||m.name).toLowerCase();(D.usage[key]=D.usage[key]||[]).push([k,x,m.qty])}}
+  return D.usage[r.name.toLowerCase()]||[];
+}
+// Переходы по ссылкам из любой карточки
+document.addEventListener('click',e=>{
+  const a=e.target.closest('[data-item]');if(a){const [k,...n]=a.dataset.item.split(':');const it=D.byName[k+':'+n.join(':')];if(it){e.stopPropagation();openItem(k,it)}return}
+  const m=e.target.closest('[data-mod]');if(m&&!m.closest('.picker')){e.stopPropagation();loadMods().then(()=>{const x=MODS.byN[m.dataset.mod];if(x)openMod(x)});return}
+  const en=e.target.closest('[data-enemy]');if(en){e.stopPropagation();loadBest().then(B=>{const x=B.byN[en.dataset.enemy];if(x)openEnemy(x)})}
+},true);
+
+/* ---------- Сейчас в игре ---------- */
+let WS=null,wsAt=0,wsP=null,nowTimer=0;
+function loadWS(){
+  if(WS&&Date.now()-wsAt<60000)return Promise.resolve(WS);
+  if(!wsP)wsP=fetch('https://api.warframestat.us/pc/?language=ru').then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(j=>{WS=j;wsAt=Date.now();wsP=null;return j}).catch(e=>{wsP=null;throw e});
+  return wsP;
+}
+const left=iso=>{const ms=new Date(iso)-Date.now();if(!(ms>0))return 'истекло';const s=Math.floor(ms/1000),dd=Math.floor(s/86400),h=Math.floor(s%86400/3600),mi=Math.floor(s%3600/60),se=s%60;
+  return dd?`${dd} д ${h} ч`:h?`${h} ч ${String(mi).padStart(2,'0')} мин`:`${mi}:${String(se).padStart(2,'0')}`};
+const T=iso=>iso?`<span class="cd" data-exp="${esc(iso)}">${left(iso)}</span>`:'';
+const TIERS=['Lith','Meso','Neo','Axi','Requiem','Omnia'];
+function nowView(){
+  view.innerHTML=`<div class="wrap"><div class="head"><div><div class="eyebrow">Мир Origin</div><h1>Сейчас в игре</h1><p class="sub">Разломы Бездны, вылазка, архонт, циклы открытых миров, Баро Ки'Тиир, Ночная волна и вторжения. Данные обновляются раз в минуту, таймеры идут в реальном времени.</p></div></div><div id="nowb" class="loading">ЗАГРУЗКА…</div></div>${foot()}`;
+  let fm='normal';
+  const draw=ws=>{
+    const f=(ws.fissures||[]).filter(x=>!x.expired&&new Date(x.expiry)>Date.now()&&(fm==='storm'?x.isStorm:fm==='hard'?x.isHard&&!x.isStorm:!x.isHard&&!x.isStorm));
+    const fz=TIERS.map(t=>[t,f.filter(x=>x.tier===t)]).filter(x=>x[1].length);
+    const cyc=[['Цетус','cetusCycle'],['Орб-Валлис','vallisCycle'],['Камбиональный дрейф','cambionCycle'],['Земля','earthCycle'],['Зариман','zarimanCycle'],['Дувири','duviriCycle']].map(([n,k])=>[n,ws[k]]).filter(x=>x[1]);
+    const so=ws.sortie,ar=ws.archonHunt,vt=ws.voidTrader,nw=ws.nightwave,inv=(ws.invasions||[]).filter(x=>!x.completed),arb=ws.arbitration,sp=ws.steelPath;
+    $('#nowb').className='';
+    $('#nowb').innerHTML=`<section class="card cut" style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h3 style="margin:0">Разломы Бездны</h3>
+       <div class="subtabs" style="margin:0">${[['normal','Обычные'],['hard','Стальной путь'],['storm','Бури Бездны']].map(([k,t])=>`<a href="#now" data-fm="${k}" class="${fm===k?'on':''}">${t}</a>`).join('')}</div></div>
+       <div class="fgrid" style="padding:12px 0 0;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))">${fz.map(([t,l])=>`<div class="stat2"><div class="k" style="display:flex;justify-content:space-between"><span>${t} · ${l.length}</span><a href="#relics" data-tier="${t}" style="font-size:11px">реликвии ${t} →</a></div>
+         ${l.map(x=>`<div style="padding:6px 0;border-top:1px solid var(--line);font-size:13.5px"><b style="font-family:var(--f-display)">${esc(x.missionType)}</b> · ${esc(x.node)}<div style="font:500 11.5px var(--f-data);color:var(--muted);display:flex;justify-content:space-between"><span>${esc(x.enemy||'')}</span>${T(x.expiry)}</div></div>`).join('')}</div>`).join('')||'<p>Сейчас таких разломов нет.</p>'}</div></section>
+     <div class="fgrid" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr))">
+      ${so&&so.variants?`<section class="card cut"><h3>Вылазка</h3><p>${esc(so.boss||'')} · ${esc(so.faction||'')} · осталось ${T(so.expiry)}</p>${so.variants.map((v,i)=>`<div class="fway" style="grid-template-columns:28px 1fr"><b>${i+1}</b><div><b>${esc(v.missionType)}</b> · ${esc(v.node)}<small>${esc(v.modifier||'')}</small></div></div>`).join('')}</section>`:''}
+      ${ar&&ar.missions?`<section class="card cut"><h3>Охота на архонта</h3><p>${esc(ar.boss||'')} · осталось ${T(ar.expiry)}</p>${ar.missions.map((v,i)=>`<div class="fway" style="grid-template-columns:28px 1fr"><b>${i+1}</b><div><b>${esc(v.type)}</b> · ${esc(v.node)}</div></div>`).join('')}</section>`:''}
+      <section class="card cut"><h3>Циклы открытых миров</h3>${cyc.map(([n,c])=>`<div class="fway" style="grid-template-columns:1fr auto"><div><b>${n}</b><small>${esc(c.state||'')}</small></div><div>${T(c.expiry)}</div></div>`).join('')}</section>
+      ${vt?`<section class="card cut"><h3>Баро Ки'Тиир</h3>${vt.active?`<p>Сейчас на ${esc(vt.location)} · уйдёт через ${T(vt.expiry)}</p>${(vt.inventory||[]).map(x=>`<div class="fway" style="grid-template-columns:1fr auto"><div>${esc(x.item)}</div><div style="font:500 12px var(--f-data)">${x.ducats} дук. · ${num(x.credits)} кр.</div></div>`).join('')}`:`<p>Прибудет на ${esc(vt.location||'')} через ${T(vt.activation)}</p>`}</section>`:''}
+      ${nw&&nw.activeChallenges?`<section class="card cut"><h3>Ночная волна</h3>${nw.activeChallenges.map(c=>`<div class="fway" style="grid-template-columns:1fr auto"><div><b>${esc(c.title)}</b><small>${esc(c.desc)}</small></div><div style="font:500 12px var(--f-data);text-align:right">${num(c.reputation)}<br>${T(c.expiry)}</div></div>`).join('')}</section>`:''}
+      ${arb&&arb.node?`<section class="card cut"><h3>Арбитраж</h3><p><b>${esc(arb.type||'')}</b> · ${esc(arb.node)} · ${esc(arb.enemy||'')} · ${T(arb.expiry)}</p></section>`:''}
+      ${sp&&sp.currentReward?`<section class="card cut"><h3>Стальной путь</h3><p>Награда недели у Тешина: <b>${esc(sp.currentReward.name)}</b> · ${num(sp.currentReward.cost||0)} эссенции · ${T(sp.expiry)}</p></section>`:''}
+      ${inv.length?`<section class="card cut"><h3>Вторжения (${inv.length})</h3>${inv.slice(0,12).map(x=>`<div class="fway" style="grid-template-columns:1fr"><div><b>${esc(x.node)}</b> · ${Math.round(x.completion||0)}%<small>${esc([x.vsInfestation?'':x.attacker&&x.attacker.reward&&x.attacker.reward.asString,x.defender&&x.defender.reward&&x.defender.reward.asString].filter(Boolean).join(' / '))}</small></div></div>`).join('')}</section>`:''}
+     </div><p class="sub" style="font-size:12px;padding-bottom:20px">Источник: открытое API сообщества warframestat.us (WFCD). Обновлено: ${new Date(wsAt).toLocaleTimeString('ru')}.</p>`;
+  };
+  const go=()=>loadWS().then(ws=>{if(cur==='now')draw(ws)}).catch(()=>{const b=$('#nowb');if(b)b.innerHTML='<div class="empty">Не удалось получить данные игрового мира. Попробуйте обновить страницу чуть позже.</div>'});
+  go();
+  view.onclick=e=>{const a=e.target.closest('[data-fm]');if(a){e.preventDefault();fm=a.dataset.fm;draw(WS);return}const t=e.target.closest('[data-tier]');if(t){state.relics.q=t.dataset.tier}};
+  let tick=0;nowTimer=setInterval(()=>{document.querySelectorAll('.cd[data-exp]').forEach(el=>el.textContent=left(el.dataset.exp));if(++tick%60===0)go()},1000);
+}
+
+/* ---------- Сквозной поиск ---------- */
+let SIDX=null;
+function buildIndex(){
+  const out=[];const add=(t,n,e,s,img,go)=>out.push({t,n,e,s,img,go,_s:(n+' '+(e||'')).toLowerCase()});
+  for(const [k,l,t] of [['arsenal',D.weapons,'Оружие'],['frames',D.frames,'Варфрейм'],['companions',D.companions,'Компаньон']])for(const x of l)add(t,x.ru,x.name,x.category,x.img,()=>openItem(k,x));
+  for(const r of D.relics)add('Реликвия',r.name,'',r.status,r.img,()=>{state.relics.q=r.name;location.hash='relics'});
+  for(const r of D.resources)add('Ресурс',r.ru,r.name,'',r.img,()=>{state.resources.q=r.ru;location.hash='resources'});
+  W.FACTIONS.forEach(f=>add('Фракция',f.name,f.en,'Энциклопедия',null,()=>{location.hash='wiki-factions'}));
+  W.STATUS.forEach(([e,n])=>add('Статус-эффект',n,W.EL[e],'Энциклопедия',null,()=>{location.hash='wiki-status'}));
+  Object.values(W.FOCUS).forEach(f=>add('Школа фокуса',f.name,'',f.role,null,()=>{location.hash='wiki-focus'}));
+  window.LORE.EV.forEach((e,i)=>add('Хроники',e.title,e.quest||'',e.when,null,()=>{location.hash='lore-'+(i+1)}));
+  if(MODS){for(const m of MODS.mods)add('Мод',m.ru,m.n,(m.rs||[])[0]||'',m.img,()=>openMod(m));for(const a of MODS.arcanes)add('Мистификатор',a.ru,a.n,(a.rs[0]||'').split('\n')[0],a.img,()=>openArc(a))}
+  if(BEST)for(const e of BEST.enemies)add('Противник',e.n,'',EF[e.f]||e.f||'',e.img,()=>openEnemy(e));
+  return out;
+}
+function openSearch(){
+  if(document.querySelector('.gsearch'))return;
+  const ov=document.createElement('div');ov.className='picker gsearch';
+  ov.innerHTML=`<div role="dialog" aria-modal="true" aria-label="Поиск по сайту"><div class="pk-head"><input class="field" id="gsq" type="search" placeholder="Оружие, варфрейм, мод, реликвия, противник, событие лора…" aria-label="Поиск по сайту" autocomplete="off">
+    <div style="font:500 11px var(--f-data);color:var(--muted)">↑ ↓ — выбор · Enter — открыть · Esc — закрыть</div></div><div class="pk-list" id="gsl"></div></div>`;
+  document.body.appendChild(ov);const inp=ov.querySelector('#gsq');setTimeout(()=>inp.focus(),20);
+  SIDX=buildIndex();let res=[],sel=0;
+  Promise.all([loadMods(),loadBest()]).then(()=>{SIDX=buildIndex();draw()}).catch(()=>{});
+  const score=(x,q,toks)=>{const n=x.n.toLowerCase(),e=(x.e||'').toLowerCase();if(!toks.every(t=>x._s.includes(t)))return 0;
+    return (n===q||e===q?100:0)+(n.startsWith(q)||e.startsWith(q)?50:0)+(n.split(/[\s-]+/).some(w=>w.startsWith(toks[0]))?20:0)+10-Math.min(9,n.length/10)};
+  const draw=()=>{const q=inp.value.toLowerCase().trim();const toks=q.split(/\s+/).filter(Boolean);
+    if(!toks.length){$('#gsl').innerHTML='<div class="empty">Начните вводить название на русском или английском.</div>';res=[];return}
+    res=SIDX.map(x=>[x,score(x,q,toks)]).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]).slice(0,40).map(x=>x[0]);sel=Math.min(sel,res.length-1);if(sel<0)sel=0;
+    $('#gsl').innerHTML=res.map((x,i)=>`<button class="pk-item${i===sel?' on':''}" data-gi="${i}">${x.img?pic(x.img,'',x.n,40):'<span class="gsi">'+esc(x.t[0])+'</span>'}<div style="min-width:0"><div class="t">${esc(x.n)}${x.e&&x.e!==x.n?` <span style="font:500 11px var(--f-data);color:var(--muted)">${esc(x.e)}</span>`:''}</div><div class="s">${esc(x.s||'')}</div></div><span class="tag">${esc(x.t)}</span></button>`).join('')||'<div class="empty">Ничего не найдено.</div>';
+    const el=ov.querySelector('.pk-item.on');if(el)el.scrollIntoView({block:'nearest'})};
+  const close=()=>ov.remove();
+  const open=i=>{const x=res[i];if(!x)return;close();x.go()};
+  inp.addEventListener('input',()=>{sel=0;draw()});
+  inp.addEventListener('keydown',e=>{if(e.key==='ArrowDown'){sel=Math.min(res.length-1,sel+1);draw();e.preventDefault()}else if(e.key==='ArrowUp'){sel=Math.max(0,sel-1);draw();e.preventDefault()}else if(e.key==='Enter'){open(sel)}else if(e.key==='Escape'){e.stopPropagation();close()}});
+  ov.addEventListener('click',e=>{if(e.target===ov)return close();const b=e.target.closest('[data-gi]');if(b)open(+b.dataset.gi)});
+  draw();
+}
+document.getElementById('gsbtn')?.addEventListener('click',openSearch);
+addEventListener('keydown',e=>{if((e.key==='/'&&!e.target.closest('input,textarea,select'))||((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k')){e.preventDefault();openSearch()}});
 
 function foot(){return `<footer class="wrap">Обновлено: ${D.built}. Данные: WARFRAME Wiki и WFCD warframe-items; описания добычи переведены и дополнены вручную. Warframe © Digital Extremes. Неофициальный фанатский сайт.</footer>`}
 
